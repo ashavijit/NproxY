@@ -55,10 +55,7 @@ void event_loop_destroy(event_loop_t *loop) {
 
 static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events, ev_handler_fn fn,
                             void *ctx) {
-  if (fd >= loop->max_fd) {
-    log_error("event_loop: fd %d exceeds max_fd %d", fd, loop->max_fd);
-    return NP_ERR;
-  }
+  if (UNLIKELY(fd >= loop->max_fd)) return NP_ERR;
 
   if (op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD) {
     ev_handler_t *h = loop->handlers[fd];
@@ -73,7 +70,7 @@ static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events, ev_h
 
   struct epoll_event ev;
   ev.events = events;
-  ev.data.fd = fd;
+  ev.data.ptr = loop->handlers[fd];
 
   if (epoll_ctl(loop->epfd, op, fd, &ev) < 0) {
     log_error_errno("epoll_ctl op=%d fd=%d", op, fd);
@@ -109,10 +106,10 @@ void event_loop_run(event_loop_t *loop, int *running) {
       break;
     }
     for (int i = 0; i < n; i++) {
-      int fd = loop->events[i].data.fd;
+      ev_handler_t *h = (ev_handler_t *)loop->events[i].data.ptr;
       u32 ev = loop->events[i].events;
-      if (fd < loop->max_fd && loop->handlers[fd]) {
-        loop->handlers[fd]->fn(fd, ev, loop->handlers[fd]->ctx);
+      if (LIKELY(h)) {
+        h->fn(0, ev, h->ctx);
       }
     }
   }

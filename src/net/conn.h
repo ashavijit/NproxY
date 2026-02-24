@@ -35,9 +35,21 @@ struct conn {
   void *request;
   void *response;
   event_loop_t *loop;
+  void *worker_state;
   conn_t *next;
   conn_t *prev;
 };
+
+typedef struct {
+  conn_t *free_head;
+  int free_count;
+  int max_free;
+} conn_pool_t;
+
+conn_pool_t *conn_pool_create(int max_free);
+void conn_pool_destroy(conn_pool_t *pool);
+conn_t *conn_pool_get(conn_pool_t *pool, int fd, struct sockaddr_in *peer, event_loop_t *loop);
+void conn_pool_put(conn_pool_t *pool, conn_t *conn);
 
 conn_t *conn_create(int fd, struct sockaddr_in *peer, event_loop_t *loop);
 void conn_destroy(conn_t *conn);

@@ -40,7 +40,7 @@ typedef struct {
   i64 content_length;
   bool chunked;
   bool keep_alive;
-  bool has_connection_header; /* true if Connection: header was seen */
+  bool has_connection_header;
   usize body_offset;
   usize parsed_bytes;
 } http_parse_state_t;

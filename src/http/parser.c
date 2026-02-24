@@ -84,7 +84,6 @@ parse_result_t http_parse_request(http_parse_state_t *s, const u8 *data, usize l
     } else if (str_ieq(name, STR("Transfer-Encoding"))) {
       if (str_ieq(value, STR("chunked"))) s->chunked = true;
     } else if (str_ieq(name, STR("Connection"))) {
-      /* Explicit Connection header overrides the HTTP-version default */
       s->has_connection_header = true;
       s->keep_alive = !str_ieq(value, STR("close"));
     }
@@ -92,8 +91,6 @@ parse_result_t http_parse_request(http_parse_state_t *s, const u8 *data, usize l
     cur = line_end + 2;
   }
 
-  /* RFC 7230 §6.3: HTTP/1.1 connections are persistent by default.
-   * Only applies when no Connection header was present. */
   if (!s->has_connection_header) s->keep_alive = (s->version == HTTP_11);
 
   if (s->version == HTTP_11 && !s->chunked && s->content_length < 0) {

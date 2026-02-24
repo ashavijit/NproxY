@@ -18,3 +18,4 @@ certs/
 # Python test artifacts
 __pycache__/
 *.pyc
+.github/
