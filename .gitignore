@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+nproxy
+bin/
+
+# Logs
+logs/
+*.log
+/tmp/nproxy*
+
+# Certs (sensitive)
+certs/
+
+# OS/Editor
+.DS_Store
+.vscode/
+
+# Python test artifacts
+__pycache__/
+*.pyc

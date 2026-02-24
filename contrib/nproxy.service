@@ -1,0 +1,29 @@
+[Unit]
+Description=Nproxy HTTP Reverse Proxy
+Documentation=https://github.com/youruser/nproxy
+After=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+User=nproxy
+Group=nproxy
+ExecStart=/usr/local/bin/nproxy -c /etc/nproxy/nproxy.conf
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log/nproxy /run/nproxy
+PrivateTmp=yes
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

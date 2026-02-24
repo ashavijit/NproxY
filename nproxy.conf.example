@@ -1,0 +1,43 @@
+# nproxy.conf.example — copy to nproxy.conf and edit
+# Full reference: CONFIGURATION.md
+
+[server]
+listen_port       = 8080
+listen_addr       = 0.0.0.0
+worker_processes  = 4
+backlog           = 4096
+max_connections   = 100000
+keepalive_timeout = 75
+read_timeout      = 60
+write_timeout     = 60
+static_root       = ./www
+
+[tls]
+enabled     = false
+listen_port = 8443
+cert_file   = ./certs/server.crt
+key_file    = ./certs/server.key
+
+[proxy]
+enabled          = true
+mode             = round_robin
+connect_timeout  = 5
+upstream_timeout = 30
+
+[upstream]
+backend = 127.0.0.1:9000
+backend = 127.0.0.1:9001
+
+[rate_limit]
+enabled             = true
+requests_per_second = 1000
+burst               = 200
+
+[log]
+level      = info
+access_log = ./logs/access.log
+error_log  = ./logs/error.log
+
+[metrics]
+enabled = true
+path    = /metrics
