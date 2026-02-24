@@ -1,4 +1,6 @@
 # Nproxy
+<br>
+<img src="assets/nproxy.png" width="128" alt="Nproxy Logo">
 
 A production-grade, event-driven HTTP reverse proxy and static file server built in C17.
 
