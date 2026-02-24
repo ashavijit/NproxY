@@ -137,3 +137,44 @@ void response_write_simple(np_buf_t *buf, int status, const char *reason, const 
     buf_produce(buf, body_len);
   }
 }
+
+void response_write_error(np_buf_t *buf, int status, bool keep_alive) {
+  const char *reason = status_reason(status);
+  char body[2048];
+  int blen = snprintf(
+      body, sizeof(body),
+      "<!DOCTYPE html>\n"
+      "<html>\n"
+      "<head><title>%d %s</title></head>\n"
+      "<body style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
+      "display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;"
+      "background:#0f0f0f;color:#e0e0e0\">\n"
+      "<div style=\"text-align:center;padding:40px\">\n"
+      "<h1 style=\"font-size:72px;font-weight:200;margin:0;color:#ff6b6b\">%d</h1>\n"
+      "<p style=\"font-size:20px;color:#888;margin:12px 0 32px\">%s</p>\n"
+      "<hr style=\"border:none;border-top:1px solid #333;width:280px;margin:0 auto 16px\">\n"
+      "<p style=\"font-size:13px;color:#555\">nproxy/1.0</p>\n"
+      "</div>\n"
+      "</body>\n"
+      "</html>\n",
+      status, reason, status, reason);
+
+  const char *conn = keep_alive ? "keep-alive" : "close";
+  char header[512];
+  int hn = snprintf(header, sizeof(header),
+                    "HTTP/1.1 %d %s\r\n"
+                    "Content-Type: text/html\r\n"
+                    "Content-Length: %d\r\n"
+                    "Connection: %s\r\n"
+                    "\r\n",
+                    status, reason, blen, conn);
+
+  if (hn > 0 && buf_writable(buf) >= (usize)hn) {
+    memcpy(buf_write_ptr(buf), header, (usize)hn);
+    buf_produce(buf, (usize)hn);
+  }
+  if (blen > 0 && buf_writable(buf) >= (usize)blen) {
+    memcpy(buf_write_ptr(buf), body, (usize)blen);
+    buf_produce(buf, (usize)blen);
+  }
+}

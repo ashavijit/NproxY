@@ -10,8 +10,8 @@
 #include "net/socket.h"
 #include "proxy/upstream.h"
 
-static void send_error(conn_t *conn, int status, const char *msg) {
-  response_write_simple(&conn->wbuf, status, NULL, "text/plain", msg, false);
+static void send_error(conn_t *conn, int status) {
+  response_write_error(&conn->wbuf, status, false);
   conn->state = CONN_WRITING_RESPONSE;
 }
 
@@ -60,7 +60,7 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
   if (events & (EV_HUP | EPOLLERR)) {
     event_loop_del(conn->loop, fd);
     if (buf_readable(&conn->upstream_rbuf) == 0) {
-      send_error(conn, 502, "bad gateway\n");
+      send_error(conn, 502);
     }
     conn->state = CONN_WRITING_RESPONSE;
     buf_write_fd(&conn->wbuf, conn->fd);
@@ -70,7 +70,7 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
   if (events & EV_WRITE) {
     isize n = buf_write_fd(&conn->upstream_wbuf, fd);
     if (n < 0 && n != NP_ERR_AGAIN) {
-      send_error(conn, 502, "bad gateway\n");
+      send_error(conn, 502);
       return;
     }
     if (buf_readable(&conn->upstream_wbuf) == 0) {
@@ -99,8 +99,7 @@ void proxy_handle(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
   upstream_backend_t *be = upstream_select(pool);
 
   if (!be) {
-    response_write_simple(&conn->wbuf, 503, "Service Unavailable", "text/plain",
-                          "no healthy backends\n", req->keep_alive);
+    response_write_error(&conn->wbuf, 503, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     metrics_inc_upstream_errors(ctx->metrics);
     return;
@@ -109,8 +108,7 @@ void proxy_handle(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
   int ufd;
   if (socket_connect_nonblock(&ufd, be->host, be->port) != NP_OK) {
     upstream_release(pool, be, true);
-    response_write_simple(&conn->wbuf, 502, "Bad Gateway", "text/plain",
-                          "upstream connect failed\n", req->keep_alive);
+    response_write_error(&conn->wbuf, 502, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     metrics_inc_upstream_errors(ctx->metrics);
     return;

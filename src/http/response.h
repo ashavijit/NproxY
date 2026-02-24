@@ -23,5 +23,6 @@ np_status_t response_serialize(http_response_t *r, np_buf_t *buf);
 
 void response_write_simple(np_buf_t *buf, int status, const char *reason, const char *content_type,
                            const char *body, bool keep_alive);
+void response_write_error(np_buf_t *buf, int status, bool keep_alive);
 
 #endif

@@ -85,7 +85,7 @@ static void handle_read(conn_t *conn) {
 
   if (pr == PARSE_INCOMPLETE) return;
   if (pr == PARSE_ERROR) {
-    response_write_simple(&conn->wbuf, 400, "Bad Request", "text/plain", "bad request\n", false);
+    response_write_error(&conn->wbuf, 400, false);
     conn->state = CONN_WRITING_RESPONSE;
     event_loop_mod(conn->loop, conn->fd, EV_WRITE | EV_HUP | EV_EDGE, on_client_event, conn);
     return;

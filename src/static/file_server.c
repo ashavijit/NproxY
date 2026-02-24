@@ -38,8 +38,7 @@ int file_server_handle(conn_t *conn, http_request_t *req, const char *root) {
   path[plen] = '\0';
 
   if (!path_is_safe(path)) {
-    response_write_simple(&conn->wbuf, 403, "Forbidden", "text/plain", "forbidden\n",
-                          req->keep_alive);
+    response_write_error(&conn->wbuf, 403, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     return 403;
   }
@@ -52,8 +51,7 @@ int file_server_handle(conn_t *conn, http_request_t *req, const char *root) {
 
   int fd = open(resolved, O_RDONLY | O_CLOEXEC);
   if (fd < 0) {
-    response_write_simple(&conn->wbuf, 404, "Not Found", "text/plain", "not found\n",
-                          req->keep_alive);
+    response_write_error(&conn->wbuf, 404, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     return 404;
   }
@@ -61,8 +59,7 @@ int file_server_handle(conn_t *conn, http_request_t *req, const char *root) {
   struct stat st;
   if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) {
     close(fd);
-    response_write_simple(&conn->wbuf, 404, "Not Found", "text/plain", "not found\n",
-                          req->keep_alive);
+    response_write_error(&conn->wbuf, 404, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     return 404;
   }
