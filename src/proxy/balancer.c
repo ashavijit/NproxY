@@ -1,4 +1,5 @@
 #include "proxy/balancer.h"
+
 #include <limits.h>
 
 upstream_backend_t *balancer_round_robin(upstream_pool_t *pool) {
@@ -19,8 +20,7 @@ upstream_backend_t *balancer_least_conn(upstream_pool_t *pool) {
   int min_conns = INT_MAX;
   for (int i = 0; i < pool->count; i++) {
     upstream_backend_t *be = &pool->backends[i];
-    if (!be->healthy)
-      continue;
+    if (!be->healthy) continue;
     if (be->active_conns < min_conns) {
       min_conns = be->active_conns;
       best = be;

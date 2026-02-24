@@ -1,13 +1,14 @@
 #include "proxy/upstream.h"
-#include "core/log.h"
-#include "proxy/balancer.h"
+
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/log.h"
+#include "proxy/balancer.h"
+
 upstream_pool_t *upstream_pool_create(const np_config_t *cfg) {
   upstream_pool_t *pool = malloc(sizeof(*pool));
-  if (!pool)
-    return NULL;
+  if (!pool) return NULL;
   memset(pool, 0, sizeof(*pool));
   pool->mode = cfg->proxy.mode;
   pool->rr_index = 0;
@@ -26,39 +27,34 @@ upstream_pool_t *upstream_pool_create(const np_config_t *cfg) {
   return pool;
 }
 
-void upstream_pool_destroy(upstream_pool_t *pool) { free(pool); }
+void upstream_pool_destroy(upstream_pool_t *pool) {
+  free(pool);
+}
 
 upstream_backend_t *upstream_select(upstream_pool_t *pool) {
-  if (pool->count == 0)
-    return NULL;
+  if (pool->count == 0) return NULL;
   upstream_backend_t *be;
   if (pool->mode == BALANCE_LEAST_CONN) {
     be = balancer_least_conn(pool);
   } else {
     be = balancer_round_robin(pool);
   }
-  if (be)
-    be->active_conns++;
+  if (be) be->active_conns++;
   return be;
 }
 
-void upstream_release(upstream_pool_t *pool, upstream_backend_t *be,
-                      bool error) {
+void upstream_release(upstream_pool_t *pool, upstream_backend_t *be, bool error) {
   NP_UNUSED(pool);
-  if (!be)
-    return;
-  if (be->active_conns > 0)
-    be->active_conns--;
+  if (!be) return;
+  if (be->active_conns > 0) be->active_conns--;
   if (error) {
     be->error_count++;
     if (be->error_count > 5) {
       be->healthy = false;
-      log_warn("upstream %s:%d marked unhealthy (errors=%d)", be->host,
-               be->port, be->error_count);
+      log_warn("upstream %s:%d marked unhealthy (errors=%d)", be->host, be->port, be->error_count);
     }
   } else {
     be->total_requests++;
-    if (!be->healthy && be->error_count == 0)
-      be->healthy = true;
+    if (!be->healthy && be->error_count == 0) be->healthy = true;
   }
 }

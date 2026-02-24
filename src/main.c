@@ -1,13 +1,14 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 #include "core/config.h"
 #include "core/log.h"
 #include "core/types.h"
 #include "net/socket.h"
 #include "proc/master.h"
 #include "proc/worker.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 static void print_usage(const char *prog) {
   fprintf(stderr,
@@ -27,21 +28,21 @@ int main(int argc, char *argv[]) {
 
   while ((opt = getopt(argc, argv, "c:twv")) != -1) {
     switch (opt) {
-    case 'c':
-      config_path = optarg;
-      break;
-    case 't':
-      test_only = true;
-      break;
-    case 'w':
-      single_worker = true;
-      break;
-    case 'v':
-      fprintf(stdout, "nproxy 1.0.0\n");
-      return 0;
-    default:
-      print_usage(argv[0]);
-      return 1;
+      case 'c':
+        config_path = optarg;
+        break;
+      case 't':
+        test_only = true;
+        break;
+      case 'w':
+        single_worker = true;
+        break;
+      case 'v':
+        fprintf(stdout, "nproxy 1.0.0\n");
+        return 0;
+      default:
+        print_usage(argv[0]);
+        return 1;
     }
   }
 
@@ -65,8 +66,7 @@ int main(int argc, char *argv[]) {
   int rc;
   if (single_worker) {
     np_socket_t listener;
-    if (socket_create_listener(&listener, cfg.listen_addr, cfg.listen_port,
-                               cfg.backlog) != NP_OK) {
+    if (socket_create_listener(&listener, cfg.listen_addr, cfg.listen_port, cfg.backlog) != NP_OK) {
       log_error("failed to bind %s:%d", cfg.listen_addr, cfg.listen_port);
       log_close();
       return 1;

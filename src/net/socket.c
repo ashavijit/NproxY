@@ -1,5 +1,5 @@
 #include "net/socket.h"
-#include "core/log.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -9,17 +9,16 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "core/log.h"
+
 np_status_t socket_set_nonblocking(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
-  if (flags < 0)
-    return NP_ERR;
-  if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
-    return NP_ERR;
+  if (flags < 0) return NP_ERR;
+  if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) return NP_ERR;
   return NP_OK;
 }
 
-np_status_t socket_create_listener(np_socket_t *sock, const char *host,
-                                   u16 port, int backlog) {
+np_status_t socket_create_listener(np_socket_t *sock, const char *host, u16 port, int backlog) {
   int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (fd < 0) {
     log_error_errno("socket_create_listener: socket()");
@@ -69,14 +68,11 @@ np_status_t socket_create_listener(np_socket_t *sock, const char *host,
   return NP_OK;
 }
 
-np_status_t socket_accept(np_socket_t *listener, int *client_fd,
-                          struct sockaddr_in *peer) {
+np_status_t socket_accept(np_socket_t *listener, int *client_fd, struct sockaddr_in *peer) {
   socklen_t len = sizeof(*peer);
-  int fd = accept4(listener->fd, (struct sockaddr *)peer, &len,
-                   SOCK_NONBLOCK | SOCK_CLOEXEC);
+  int fd = accept4(listener->fd, (struct sockaddr *)peer, &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
   if (fd < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK)
-      return NP_ERR_AGAIN;
+    if (errno == EAGAIN || errno == EWOULDBLOCK) return NP_ERR_AGAIN;
     return NP_ERR;
   }
 
@@ -95,8 +91,7 @@ np_status_t socket_accept(np_socket_t *listener, int *client_fd,
 
 np_status_t socket_connect_nonblock(int *fd_out, const char *host, u16 port) {
   int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-  if (fd < 0)
-    return NP_ERR;
+  if (fd < 0) return NP_ERR;
 
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
@@ -118,6 +113,5 @@ np_status_t socket_connect_nonblock(int *fd_out, const char *host, u16 port) {
 }
 
 void socket_close(int fd) {
-  if (fd >= 0)
-    close(fd);
+  if (fd >= 0) close(fd);
 }

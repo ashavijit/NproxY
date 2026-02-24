@@ -1,8 +1,10 @@
 #include "net/timeout.h"
-#include "core/log.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#include "core/log.h"
 
 struct timeout_wheel {
   timeout_entry_t **buckets;
@@ -13,8 +15,7 @@ struct timeout_wheel {
 
 timeout_wheel_t *timeout_wheel_create(int nbuckets, int resolution_sec) {
   timeout_wheel_t *tw = malloc(sizeof(*tw));
-  if (!tw)
-    return NULL;
+  if (!tw) return NULL;
   tw->buckets = calloc((usize)nbuckets, sizeof(timeout_entry_t *));
   tw->nbuckets = nbuckets;
   tw->resolution = resolution_sec;
@@ -39,11 +40,9 @@ void timeout_wheel_destroy(timeout_wheel_t *tw) {
   free(tw);
 }
 
-timeout_entry_t *timeout_add(timeout_wheel_t *tw, int seconds, timeout_cb_t cb,
-                             void *ctx) {
+timeout_entry_t *timeout_add(timeout_wheel_t *tw, int seconds, timeout_cb_t cb, void *ctx) {
   timeout_entry_t *e = malloc(sizeof(*e));
-  if (!e)
-    return NULL;
+  if (!e) return NULL;
   e->cb = cb;
   e->ctx = ctx;
   e->deadline = time(NULL) + seconds;
@@ -53,23 +52,20 @@ timeout_entry_t *timeout_add(timeout_wheel_t *tw, int seconds, timeout_cb_t cb,
   e->bucket = slot;
   e->next = tw->buckets[slot];
   e->prev = NULL;
-  if (tw->buckets[slot])
-    tw->buckets[slot]->prev = e;
+  if (tw->buckets[slot]) tw->buckets[slot]->prev = e;
   tw->buckets[slot] = e;
   return e;
 }
 
 void timeout_remove(timeout_wheel_t *tw, timeout_entry_t *entry) {
-  if (!entry || !entry->active)
-    return;
+  if (!entry || !entry->active) return;
   entry->active = false;
   int slot = entry->bucket;
   if (entry->prev)
     entry->prev->next = entry->next;
   else
     tw->buckets[slot] = entry->next;
-  if (entry->next)
-    entry->next->prev = entry->prev;
+  if (entry->next) entry->next->prev = entry->prev;
   entry->next = NULL;
   entry->prev = NULL;
   free(entry);
@@ -92,8 +88,7 @@ void timeout_tick(timeout_wheel_t *tw) {
       e->bucket = slot;
       e->next = tw->buckets[slot];
       e->prev = NULL;
-      if (tw->buckets[slot])
-        tw->buckets[slot]->prev = e;
+      if (tw->buckets[slot]) tw->buckets[slot]->prev = e;
       tw->buckets[slot] = e;
     } else {
       free(e);

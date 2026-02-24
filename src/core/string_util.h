@@ -1,8 +1,9 @@
 #ifndef NPROXY_STRING_UTIL_H
 #define NPROXY_STRING_UTIL_H
 
-#include "types.h"
 #include <string.h>
+
+#include "types.h"
 
 typedef struct {
   const char *ptr;

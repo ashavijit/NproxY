@@ -1,11 +1,12 @@
 #ifndef NPROXY_CONN_H
 #define NPROXY_CONN_H
 
+#include <netinet/in.h>
+#include <time.h>
+
 #include "core/memory.h"
 #include "core/types.h"
 #include "net/buffer.h"
-#include <netinet/in.h>
-#include <time.h>
 
 typedef enum {
   CONN_READING_REQUEST = 0,

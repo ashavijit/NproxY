@@ -1,8 +1,9 @@
 #ifndef NPROXY_ACCESS_LOG_H
 #define NPROXY_ACCESS_LOG_H
 
-#include "http/request.h"
 #include <time.h>
+
+#include "http/request.h"
 
 void access_log_init(const char *path);
 void access_log_close(void);

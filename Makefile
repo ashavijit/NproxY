@@ -10,7 +10,7 @@ SRCS := $(shell find $(SRCDIR) -name '*.c')
 OBJS := $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean debug
+.PHONY: all clean debug format
 
 all: $(TARGET)
 
@@ -29,3 +29,6 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c
 
 clean:
 	rm -rf $(BUILDDIR) $(TARGET)
+
+format:
+	clang-format -i $(SRCS) $(shell find src -name '*.h')

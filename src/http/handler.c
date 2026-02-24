@@ -1,4 +1,9 @@
 #include "http/handler.h"
+
+#include <arpa/inet.h>
+#include <string.h>
+#include <time.h>
+
 #include "core/log.h"
 #include "core/string_util.h"
 #include "features/access_log.h"
@@ -8,9 +13,6 @@
 #include "http/response.h"
 #include "proxy/proxy_conn.h"
 #include "static/file_server.h"
-#include <arpa/inet.h>
-#include <string.h>
-#include <time.h>
 
 static bool path_matches(str_t path, const char *prefix) {
   str_t p = STR_NULL;
@@ -23,8 +25,7 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
   struct timespec start;
   clock_gettime(CLOCK_MONOTONIC, &start);
 
-  inet_ntop(AF_INET, &conn->peer.sin_addr, req->remote_ip,
-            sizeof(req->remote_ip));
+  inet_ntop(AF_INET, &conn->peer.sin_addr, req->remote_ip, sizeof(req->remote_ip));
 
   if (ctx->rate_limiter) {
     np_status_t rl = rate_limit_check(ctx->rate_limiter, req->remote_ip);
@@ -62,8 +63,8 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
     return;
   }
 
-  response_write_simple(&conn->wbuf, 404, "Not Found", "text/plain",
-                        "not found\n", req->keep_alive);
+  response_write_simple(&conn->wbuf, 404, "Not Found", "text/plain", "not found\n",
+                        req->keep_alive);
   metrics_inc_requests(ctx->metrics, 404);
   access_log_write(req, 404, 0, &start);
   conn->state = CONN_WRITING_RESPONSE;

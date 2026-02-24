@@ -1,9 +1,10 @@
 #ifndef NPROXY_TLS_CONN_H
 #define NPROXY_TLS_CONN_H
 
+#include <openssl/ssl.h>
+
 #include "core/types.h"
 #include "net/conn.h"
-#include <openssl/ssl.h>
 
 typedef struct {
   SSL *ssl;

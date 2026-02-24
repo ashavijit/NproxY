@@ -1,11 +1,12 @@
 #ifndef NPROXY_REQUEST_H
 #define NPROXY_REQUEST_H
 
+#include <netinet/in.h>
+
 #include "core/memory.h"
 #include "core/string_util.h"
 #include "core/types.h"
 #include "http/parser.h"
-#include <netinet/in.h>
 
 typedef struct {
   http_method_t method;
@@ -23,8 +24,7 @@ typedef struct {
 } http_request_t;
 
 http_request_t *request_create(arena_t *arena);
-np_status_t request_populate(http_request_t *req, http_parse_state_t *ps,
-                             const u8 *raw, usize len);
+np_status_t request_populate(http_request_t *req, http_parse_state_t *ps, const u8 *raw, usize len);
 str_t request_header(const http_request_t *req, str_t name);
 
 #endif

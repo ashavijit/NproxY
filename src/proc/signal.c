@@ -1,9 +1,11 @@
 #include "proc/signal.h"
-#include "core/log.h"
+
 #include <signal.h>
 #include <string.h>
 #include <sys/signalfd.h>
 #include <unistd.h>
+
+#include "core/log.h"
 
 typedef struct {
   int *running;
@@ -16,20 +18,19 @@ static void signal_handler(int fd, u32 events, void *arg) {
   sig_ctx_t *ctx = (sig_ctx_t *)arg;
   struct signalfd_siginfo info;
   isize n = read(fd, &info, sizeof(info));
-  if (n != sizeof(info))
-    return;
+  if (n != sizeof(info)) return;
 
   switch (info.ssi_signo) {
-  case SIGTERM:
-  case SIGINT:
-    log_info("signal %d received, shutting down", info.ssi_signo);
-    *ctx->running = 0;
-    break;
-  case SIGHUP:
-    log_info("SIGHUP received, reload not implemented in worker context");
-    break;
-  default:
-    break;
+    case SIGTERM:
+    case SIGINT:
+      log_info("signal %d received, shutting down", info.ssi_signo);
+      *ctx->running = 0;
+      break;
+    case SIGHUP:
+      log_info("SIGHUP received, reload not implemented in worker context");
+      break;
+    default:
+      break;
   }
 }
 
@@ -54,6 +55,5 @@ np_status_t signal_init(event_loop_t *loop, int *running_flag) {
     return NP_ERR;
   }
 
-  return event_loop_add(loop, sfd, EV_READ | EV_EDGE, signal_handler,
-                        &g_sig_ctx);
+  return event_loop_add(loop, sfd, EV_READ | EV_EDGE, signal_handler, &g_sig_ctx);
 }

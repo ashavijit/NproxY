@@ -46,8 +46,7 @@ typedef struct {
 } http_parse_state_t;
 
 void http_parse_state_init(http_parse_state_t *s);
-parse_result_t http_parse_request(http_parse_state_t *s, const u8 *data,
-                                  usize len);
+parse_result_t http_parse_request(http_parse_state_t *s, const u8 *data, usize len);
 
 const char *http_method_str(http_method_t m);
 

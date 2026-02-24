@@ -1,8 +1,9 @@
 #ifndef NPROXY_LOG_H
 #define NPROXY_LOG_H
 
-#include "types.h"
 #include <stdarg.h>
+
+#include "types.h"
 
 typedef enum {
   LOG_ERROR = 0,

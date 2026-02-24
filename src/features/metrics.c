@@ -1,10 +1,12 @@
 #include "features/metrics.h"
-#include "core/types.h"
-#include "http/response.h"
+
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "core/types.h"
+#include "http/response.h"
 
 #define HIST_BUCKETS 16
 
@@ -20,20 +22,21 @@ struct np_metrics {
   _Atomic u64 latency_count;
 };
 
-static const u64 hist_bounds[] = {
-    100,    500,    1000,   2000,    5000,    10000,   20000,    50000,
-    100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, UINT64_MAX};
+static const u64 hist_bounds[] = {100,     500,     1000,     2000,      5000,   10000,
+                                  20000,   50000,   100000,   200000,    500000, 1000000,
+                                  2000000, 5000000, 10000000, UINT64_MAX};
 
 np_metrics_t *metrics_create(void) {
   np_metrics_t *m = calloc(1, sizeof(*m));
   return m;
 }
 
-void metrics_destroy(np_metrics_t *m) { free(m); }
+void metrics_destroy(np_metrics_t *m) {
+  free(m);
+}
 
 void metrics_inc_requests(np_metrics_t *m, int status) {
-  if (!m)
-    return;
+  if (!m) return;
   atomic_fetch_add(&m->requests_total, 1);
   if (status >= 200 && status < 300)
     atomic_fetch_add(&m->requests_2xx, 1);
@@ -44,23 +47,19 @@ void metrics_inc_requests(np_metrics_t *m, int status) {
 }
 
 void metrics_inc_active(np_metrics_t *m) {
-  if (m)
-    atomic_fetch_add(&m->active_connections, 1);
+  if (m) atomic_fetch_add(&m->active_connections, 1);
 }
 
 void metrics_dec_active(np_metrics_t *m) {
-  if (m)
-    atomic_fetch_sub(&m->active_connections, 1);
+  if (m) atomic_fetch_sub(&m->active_connections, 1);
 }
 
 void metrics_inc_upstream_errors(np_metrics_t *m) {
-  if (m)
-    atomic_fetch_add(&m->upstream_errors, 1);
+  if (m) atomic_fetch_add(&m->upstream_errors, 1);
 }
 
 void metrics_observe_latency(np_metrics_t *m, u64 latency_us) {
-  if (!m)
-    return;
+  if (!m) return;
   atomic_fetch_add(&m->latency_sum_us, latency_us);
   atomic_fetch_add(&m->latency_count, 1);
   for (int i = 0; i < HIST_BUCKETS; i++) {
@@ -95,18 +94,16 @@ void metrics_handle(np_metrics_t *m, conn_t *conn, http_request_t *req) {
                 (unsigned long long)atomic_load(&m->active_connections),
                 (unsigned long long)atomic_load(&m->upstream_errors));
 
-  n += snprintf(
-      body + n, sizeof(body) - (usize)n,
-      "# HELP nproxy_request_duration_seconds Request duration histogram\n"
-      "# TYPE nproxy_request_duration_seconds histogram\n");
+  n += snprintf(body + n, sizeof(body) - (usize)n,
+                "# HELP nproxy_request_duration_seconds Request duration histogram\n"
+                "# TYPE nproxy_request_duration_seconds histogram\n");
 
-  static const char *bucket_labels[] = {
-      "0.0001", "0.0005", "0.001", "0.002", "0.005", "0.01", "0.02", "0.05",
-      "0.1",    "0.2",    "0.5",   "1.0",   "2.0",   "5.0",  "10.0", "+Inf"};
+  static const char *bucket_labels[] = {"0.0001", "0.0005", "0.001", "0.002", "0.005", "0.01",
+                                        "0.02",   "0.05",   "0.1",   "0.2",   "0.5",   "1.0",
+                                        "2.0",    "5.0",    "10.0",  "+Inf"};
   for (int i = 0; i < HIST_BUCKETS; i++) {
     n += snprintf(body + n, sizeof(body) - (usize)n,
-                  "nproxy_request_duration_seconds_bucket{le=\"%s\"} %llu\n",
-                  bucket_labels[i],
+                  "nproxy_request_duration_seconds_bucket{le=\"%s\"} %llu\n", bucket_labels[i],
                   (unsigned long long)atomic_load(&m->latency_hist[i]));
   }
 
@@ -119,7 +116,6 @@ void metrics_handle(np_metrics_t *m, conn_t *conn, http_request_t *req) {
 
   NP_UNUSED(n);
 
-  response_write_simple(&conn->wbuf, 200, "OK", "text/plain; version=0.0.4",
-                        body, req->keep_alive);
+  response_write_simple(&conn->wbuf, 200, "OK", "text/plain; version=0.0.4", body, req->keep_alive);
   conn->state = CONN_WRITING_RESPONSE;
 }

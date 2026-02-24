@@ -1,11 +1,11 @@
 #include "memory.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 static arena_block_t *block_create(usize size) {
   arena_block_t *block = malloc(sizeof(arena_block_t) + size);
-  if (!block)
-    return NULL;
+  if (!block) return NULL;
   block->start = (u8 *)(block + 1);
   block->cap = size;
   block->used = 0;
@@ -15,8 +15,7 @@ static arena_block_t *block_create(usize size) {
 
 arena_t *arena_create(usize block_size) {
   arena_t *arena = malloc(sizeof(arena_t));
-  if (!arena)
-    return NULL;
+  if (!arena) return NULL;
   arena->block_size = block_size;
   arena->head = block_create(block_size);
   if (!arena->head) {
@@ -34,8 +33,7 @@ void *arena_alloc_aligned(arena_t *arena, usize size, usize align) {
   if (block->used + need > block->cap) {
     usize bsize = need > arena->block_size ? need : arena->block_size;
     arena_block_t *nb = block_create(bsize);
-    if (!nb)
-      return NULL;
+    if (!nb) return NULL;
     nb->next = arena->head;
     arena->head = nb;
     block = nb;

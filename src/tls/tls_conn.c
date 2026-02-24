@@ -1,14 +1,15 @@
 #include "tls/tls_conn.h"
-#include "core/log.h"
+
 #include <errno.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <stdlib.h>
 
+#include "core/log.h"
+
 np_tls_conn_t *tls_conn_create(SSL_CTX *ctx, int fd) {
   np_tls_conn_t *tc = malloc(sizeof(*tc));
-  if (!tc)
-    return NULL;
+  if (!tc) return NULL;
   tc->ssl = SSL_new(ctx);
   if (!tc->ssl) {
     free(tc);
@@ -21,8 +22,7 @@ np_tls_conn_t *tls_conn_create(SSL_CTX *ctx, int fd) {
 }
 
 void tls_conn_destroy(np_tls_conn_t *tc) {
-  if (!tc)
-    return;
+  if (!tc) return;
   if (tc->ssl) {
     SSL_shutdown(tc->ssl);
     SSL_free(tc->ssl);
@@ -31,8 +31,7 @@ void tls_conn_destroy(np_tls_conn_t *tc) {
 }
 
 np_status_t tls_conn_handshake(np_tls_conn_t *tc) {
-  if (tc->handshake_done)
-    return NP_OK;
+  if (tc->handshake_done) return NP_OK;
   int rc = SSL_do_handshake(tc->ssl);
   if (rc == 1) {
     tc->handshake_done = true;
@@ -48,22 +47,17 @@ np_status_t tls_conn_handshake(np_tls_conn_t *tc) {
 
 isize tls_conn_read(np_tls_conn_t *tc, u8 *buf, usize len) {
   int n = SSL_read(tc->ssl, buf, (int)len);
-  if (n > 0)
-    return (isize)n;
+  if (n > 0) return (isize)n;
   int err = SSL_get_error(tc->ssl, n);
-  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
-    return NP_ERR_AGAIN;
-  if (err == SSL_ERROR_ZERO_RETURN)
-    return NP_ERR_CLOSED;
+  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) return NP_ERR_AGAIN;
+  if (err == SSL_ERROR_ZERO_RETURN) return NP_ERR_CLOSED;
   return NP_ERR;
 }
 
 isize tls_conn_write(np_tls_conn_t *tc, const u8 *buf, usize len) {
   int n = SSL_write(tc->ssl, buf, (int)len);
-  if (n > 0)
-    return (isize)n;
+  if (n > 0) return (isize)n;
   int err = SSL_get_error(tc->ssl, n);
-  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
-    return NP_ERR_AGAIN;
+  if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) return NP_ERR_AGAIN;
   return NP_ERR;
 }

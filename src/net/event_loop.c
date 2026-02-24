@@ -1,10 +1,12 @@
 #include "net/event_loop.h"
-#include "core/log.h"
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
 #include <unistd.h>
+
+#include "core/log.h"
 
 struct event_loop {
   int epfd;
@@ -16,8 +18,7 @@ struct event_loop {
 
 event_loop_t *event_loop_create(int max_events) {
   event_loop_t *loop = malloc(sizeof(*loop));
-  if (!loop)
-    return NULL;
+  if (!loop) return NULL;
 
   loop->epfd = epoll_create1(EPOLL_CLOEXEC);
   if (loop->epfd < 0) {
@@ -42,8 +43,7 @@ event_loop_t *event_loop_create(int max_events) {
 }
 
 void event_loop_destroy(event_loop_t *loop) {
-  if (!loop)
-    return;
+  if (!loop) return;
   for (int i = 0; i < loop->max_fd; i++) {
     free(loop->handlers[i]);
   }
@@ -53,8 +53,8 @@ void event_loop_destroy(event_loop_t *loop) {
   free(loop);
 }
 
-static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events,
-                            ev_handler_fn fn, void *ctx) {
+static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events, ev_handler_fn fn,
+                            void *ctx) {
   if (fd >= loop->max_fd) {
     log_error("event_loop: fd %d exceeds max_fd %d", fd, loop->max_fd);
     return NP_ERR;
@@ -64,8 +64,7 @@ static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events,
     ev_handler_t *h = loop->handlers[fd];
     if (!h) {
       h = malloc(sizeof(ev_handler_t));
-      if (!h)
-        return NP_ERR_NOMEM;
+      if (!h) return NP_ERR_NOMEM;
       loop->handlers[fd] = h;
     }
     h->fn = fn;
@@ -83,19 +82,16 @@ static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events,
   return NP_OK;
 }
 
-np_status_t event_loop_add(event_loop_t *loop, int fd, u32 events,
-                           ev_handler_fn fn, void *ctx) {
+np_status_t event_loop_add(event_loop_t *loop, int fd, u32 events, ev_handler_fn fn, void *ctx) {
   return loop_ctl(loop, EPOLL_CTL_ADD, fd, events, fn, ctx);
 }
 
-np_status_t event_loop_mod(event_loop_t *loop, int fd, u32 events,
-                           ev_handler_fn fn, void *ctx) {
+np_status_t event_loop_mod(event_loop_t *loop, int fd, u32 events, ev_handler_fn fn, void *ctx) {
   return loop_ctl(loop, EPOLL_CTL_MOD, fd, events, fn, ctx);
 }
 
 np_status_t event_loop_del(event_loop_t *loop, int fd) {
-  if (fd >= loop->max_fd)
-    return NP_ERR;
+  if (fd >= loop->max_fd) return NP_ERR;
   if (epoll_ctl(loop->epfd, EPOLL_CTL_DEL, fd, NULL) < 0 && errno != EBADF) {
     log_error_errno("epoll_ctl EPOLL_CTL_DEL fd=%d", fd);
   }
@@ -108,8 +104,7 @@ void event_loop_run(event_loop_t *loop, int *running) {
   while (*running) {
     int n = epoll_wait(loop->epfd, loop->events, loop->max_events, 1000);
     if (n < 0) {
-      if (errno == EINTR)
-        continue;
+      if (errno == EINTR) continue;
       log_error_errno("epoll_wait");
       break;
     }
@@ -123,4 +118,6 @@ void event_loop_run(event_loop_t *loop, int *running) {
   }
 }
 
-int event_loop_fd(const event_loop_t *loop) { return loop->epfd; }
+int event_loop_fd(const event_loop_t *loop) {
+  return loop->epfd;
+}

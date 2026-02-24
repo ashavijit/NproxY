@@ -1,13 +1,15 @@
 #include "proc/master.h"
-#include "core/log.h"
-#include "net/socket.h"
-#include "proc/worker.h"
+
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include "core/log.h"
+#include "net/socket.h"
+#include "proc/worker.h"
 
 #define MAX_WORKERS 64
 
@@ -32,10 +34,8 @@ static volatile sig_atomic_t g_reload = 0;
 static volatile sig_atomic_t g_shutdown = 0;
 
 static void master_sighandler(int sig) {
-  if (sig == SIGHUP)
-    g_reload = 1;
-  if (sig == SIGTERM || sig == SIGINT)
-    g_shutdown = 1;
+  if (sig == SIGHUP) g_reload = 1;
+  if (sig == SIGTERM || sig == SIGINT) g_shutdown = 1;
 }
 
 static void setup_signals(void) {
@@ -52,8 +52,7 @@ static void setup_signals(void) {
 
 static void kill_workers(int sig) {
   for (int i = 0; i < worker_count; i++) {
-    if (worker_pids[i] > 0)
-      kill(worker_pids[i], sig);
+    if (worker_pids[i] > 0) kill(worker_pids[i], sig);
   }
 }
 
@@ -70,15 +69,14 @@ int master_run(np_config_t *cfg) {
   setup_signals();
 
   np_socket_t listener;
-  if (socket_create_listener(&listener, cfg->listen_addr, cfg->listen_port,
-                             cfg->backlog) != NP_OK) {
+  if (socket_create_listener(&listener, cfg->listen_addr, cfg->listen_port, cfg->backlog) !=
+      NP_OK) {
     log_error("master: failed to create listener");
     return 1;
   }
 
   worker_count = cfg->worker_processes;
-  if (worker_count > MAX_WORKERS)
-    worker_count = MAX_WORKERS;
+  if (worker_count > MAX_WORKERS) worker_count = MAX_WORKERS;
 
   for (int i = 0; i < worker_count; i++) {
     spawn_worker(cfg, &listener, i);
@@ -93,8 +91,7 @@ int master_run(np_config_t *cfg) {
       for (int i = 0; i < worker_count; i++) {
         if (worker_pids[i] == dead) {
           log_warn("master: worker[%d] pid=%d died, respawning", i, (int)dead);
-          if (!g_shutdown)
-            spawn_worker(cfg, &listener, i);
+          if (!g_shutdown) spawn_worker(cfg, &listener, i);
           break;
         }
       }

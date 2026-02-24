@@ -1,9 +1,10 @@
 #ifndef NPROXY_TLS_CTX_H
 #define NPROXY_TLS_CTX_H
 
+#include <openssl/ssl.h>
+
 #include "core/config.h"
 #include "core/types.h"
-#include <openssl/ssl.h>
 
 typedef struct {
   SSL_CTX *ctx;

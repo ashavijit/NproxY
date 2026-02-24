@@ -1,14 +1,15 @@
 #include "net/conn.h"
-#include "core/log.h"
-#include "net/event_loop.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "core/log.h"
+#include "net/event_loop.h"
+
 conn_t *conn_create(int fd, struct sockaddr_in *peer, event_loop_t *loop) {
   conn_t *c = malloc(sizeof(*c));
-  if (!c)
-    return NULL;
+  if (!c) return NULL;
   memset(c, 0, sizeof(*c));
 
   c->fd = fd;
@@ -23,8 +24,7 @@ conn_t *conn_create(int fd, struct sockaddr_in *peer, event_loop_t *loop) {
   c->response = NULL;
   c->next = NULL;
   c->prev = NULL;
-  if (peer)
-    c->peer = *peer;
+  if (peer) c->peer = *peer;
 
   c->arena = arena_create(NP_ARENA_SIZE);
   if (!c->arena) {
