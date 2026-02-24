@@ -1,10 +1,15 @@
 #ifndef NPROXY_CONFIG_H
 #define NPROXY_CONFIG_H
 
+#include <regex.h>
+
 #include "types.h"
 
 #define CONFIG_MAX_BACKENDS 64
 #define CONFIG_MAX_STR 512
+#define CONFIG_MAX_MODULES 16
+#define CONFIG_MAX_REWRITES 32
+#define CONFIG_MAX_TRY_FILES 8
 
 typedef enum {
   BALANCE_ROUND_ROBIN = 0,
@@ -18,6 +23,12 @@ typedef struct {
 } backend_entry_t;
 
 typedef struct {
+  char pattern[CONFIG_MAX_STR];
+  char replacement[CONFIG_MAX_STR];
+  regex_t re;
+} rewrite_rule_t;
+
+typedef struct {
   u16 listen_port;
   char listen_addr[64];
   int worker_processes;
@@ -27,6 +38,21 @@ typedef struct {
   int read_timeout;
   int write_timeout;
   char static_root[CONFIG_MAX_STR];
+
+  struct {
+    char paths[CONFIG_MAX_MODULES][CONFIG_MAX_STR];
+    int count;
+  } modules;
+
+  struct {
+    rewrite_rule_t rules[CONFIG_MAX_REWRITES];
+    int count;
+  } rewrite;
+
+  struct {
+    char paths[CONFIG_MAX_TRY_FILES][CONFIG_MAX_STR];
+    int count;
+  } try_files;
 
   struct {
     bool enabled;

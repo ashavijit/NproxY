@@ -1,7 +1,7 @@
 CC      := gcc
 CFLAGS  := -O2 -march=native -Wall -Wextra -Wpedantic -std=c17 -D_GNU_SOURCE \
            -Isrc -MMD -MP
-LDFLAGS := -lssl -lcrypto -lpthread
+LDFLAGS := -lssl -lcrypto -lpthread -ldl -rdynamic
 TARGET  := nproxy
 SRCDIR  := src
 BUILDDIR := build

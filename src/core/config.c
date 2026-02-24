@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <ctype.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -111,6 +112,32 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
         cfg->write_timeout = atoi(val);
       else if (strcmp(key, "static_root") == 0)
         strncpy(cfg->static_root, val, sizeof(cfg->static_root) - 1);
+      else if (strcmp(key, "load_module") == 0 && cfg->modules.count < CONFIG_MAX_MODULES) {
+        strncpy(cfg->modules.paths[cfg->modules.count], val, CONFIG_MAX_STR - 1);
+        cfg->modules.count++;
+      } else if (strcmp(key, "rewrite") == 0 && cfg->rewrite.count < CONFIG_MAX_REWRITES) {
+        char *space = strchr(val, ' ');
+        if (space) {
+          *space = '\0';
+          char *repl = space + 1;
+          while (isspace((unsigned char)*repl)) repl++;
+          rewrite_rule_t *rule = &cfg->rewrite.rules[cfg->rewrite.count];
+          strncpy(rule->pattern, val, CONFIG_MAX_STR - 1);
+          strncpy(rule->replacement, repl, CONFIG_MAX_STR - 1);
+          if (regcomp(&rule->re, rule->pattern, REG_EXTENDED) == 0) {
+            cfg->rewrite.count++;
+          } else {
+            log_error("config: failed to compile regex '%s'", rule->pattern);
+          }
+        }
+      } else if (strcmp(key, "try_files") == 0) {
+        char *token = strtok(val, " ");
+        while (token && cfg->try_files.count < CONFIG_MAX_TRY_FILES) {
+          strncpy(cfg->try_files.paths[cfg->try_files.count], token, CONFIG_MAX_STR - 1);
+          cfg->try_files.count++;
+          token = strtok(NULL, " ");
+        }
+      }
     } else if (strcmp(section, "tls") == 0) {
       if (strcmp(key, "enabled") == 0)
         cfg->tls.enabled = parse_bool(val);
@@ -180,7 +207,9 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
 }
 
 void config_destroy(np_config_t *cfg) {
-  NP_UNUSED(cfg);
+  for (int i = 0; i < cfg->rewrite.count; i++) {
+    regfree(&cfg->rewrite.rules[i].re);
+  }
 }
 
 void config_print(const np_config_t *cfg) {

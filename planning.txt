@@ -1,0 +1,8 @@
+Feature 1: Advanced Routing
+- Regex matching for paths
+- Rewrite rules
+- try_files for static serving
+
+Feature 2: Dynamic Modules
+- Basic plugin system using dlopen() / dlsym()
+- Hook for request processing

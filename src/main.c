@@ -6,6 +6,7 @@
 #include "core/config.h"
 #include "core/log.h"
 #include "core/types.h"
+#include "module/module.h"
 #include "net/socket.h"
 #include "proc/master.h"
 #include "proc/worker.h"
@@ -54,6 +55,11 @@ int main(int argc, char *argv[]) {
 
   log_init(cfg.log.error_log, (log_level_t)cfg.log.level);
 
+  if (module_load_all(&cfg) != 0) {
+    fprintf(stderr, "nproxy: failed to load one or more modules\n");
+    return 1;
+  }
+
   if (test_only) {
     config_print(&cfg);
     fprintf(stdout, "configuration test successful\n");
@@ -76,6 +82,7 @@ int main(int argc, char *argv[]) {
     rc = master_run(&cfg);
   }
 
+  module_unload_all();
   log_close();
   return rc;
 }

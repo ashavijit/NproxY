@@ -28,7 +28,7 @@ static void etag_from_stat(const struct stat *st, char *buf, usize bufsz) {
   snprintf(buf, bufsz, "\"%lx-%lx\"", (unsigned long)st->st_mtime, (unsigned long)st->st_size);
 }
 
-int file_server_handle(conn_t *conn, http_request_t *req, const char *root) {
+int file_server_handle(conn_t *conn, http_request_t *req, np_config_t *cfg) {
   char resolved[8192];
   char path[4096];
   usize plen = req->path.len;
@@ -43,22 +43,49 @@ int file_server_handle(conn_t *conn, http_request_t *req, const char *root) {
     return 403;
   }
 
-  if (path[plen - 1] == '/') {
-    snprintf(resolved, sizeof(resolved), "%s%sindex.html", root, path);
-  } else {
-    snprintf(resolved, sizeof(resolved), "%s%s", root, path);
-  }
-
-  int fd = open(resolved, O_RDONLY | O_CLOEXEC);
-  if (fd < 0) {
-    response_write_error(&conn->wbuf, 404, req->keep_alive);
-    conn->state = CONN_WRITING_RESPONSE;
-    return 404;
-  }
-
+  int fd = -1;
   struct stat st;
-  if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) {
-    close(fd);
+
+  if (cfg->try_files.count > 0) {
+    for (int i = 0; i < cfg->try_files.count; i++) {
+      char tmp_path[8192] = {0};
+      char *src = cfg->try_files.paths[i];
+      char *tgt = tmp_path;
+      while (*src && (tgt - tmp_path) < (isize)sizeof(tmp_path) - 1) {
+        if (strncmp(src, "$uri", 4) == 0) {
+          int ulen = snprintf(tgt, sizeof(tmp_path) - (tgt - tmp_path), "%s", path);
+          if (ulen > 0) tgt += ulen;
+          src += 4;
+        } else {
+          *tgt++ = *src++;
+        }
+      }
+      *tgt = '\0';
+
+      snprintf(resolved, sizeof(resolved), "%s%s", cfg->static_root, tmp_path);
+      fd = open(resolved, O_RDONLY | O_CLOEXEC);
+      if (fd >= 0) {
+        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode)) {
+          break;  // found a matching file
+        }
+        close(fd);
+        fd = -1;
+      }
+    }
+  } else {
+    if (path[plen - 1] == '/') {
+      snprintf(resolved, sizeof(resolved), "%s%sindex.html", cfg->static_root, path);
+    } else {
+      snprintf(resolved, sizeof(resolved), "%s%s", cfg->static_root, path);
+    }
+    fd = open(resolved, O_RDONLY | O_CLOEXEC);
+    if (fd >= 0 && (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode))) {
+      close(fd);
+      fd = -1;
+    }
+  }
+
+  if (fd < 0) {
     response_write_error(&conn->wbuf, 404, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     return 404;

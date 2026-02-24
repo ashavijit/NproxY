@@ -1,6 +1,8 @@
 #include "http/handler.h"
 
 #include <arpa/inet.h>
+#include <regex.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
@@ -11,6 +13,7 @@
 #include "features/metrics.h"
 #include "features/rate_limit.h"
 #include "http/response.h"
+#include "module/module.h"
 #include "proxy/proxy_conn.h"
 #include "static/file_server.h"
 
@@ -26,6 +29,50 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
   clock_gettime(CLOCK_MONOTONIC, &start);
 
   inet_ntop(AF_INET, &conn->peer.sin_addr, req->remote_ip, sizeof(req->remote_ip));
+
+  if (module_run_request_handlers(conn, req, ctx->config) == NP_MODULE_HANDLED) {
+    access_log_write(req, 200, 0, &start);
+    return;
+  }
+
+  for (int i = 0; i < ctx->config->rewrite.count; i++) {
+    rewrite_rule_t *rule = &ctx->config->rewrite.rules[i];
+    regmatch_t matches[10];
+    char path_buf[1024];
+    usize plen = req->path.len < sizeof(path_buf) - 1 ? req->path.len : sizeof(path_buf) - 1;
+    memcpy(path_buf, req->path.ptr, plen);
+    path_buf[plen] = '\0';
+
+    if (regexec(&rule->re, path_buf, 10, matches, 0) == 0) {
+      char new_path[1024] = {0};
+      char *dest = new_path;
+      char *src = rule->replacement;
+      while (*src && (dest - new_path) < (isize)sizeof(new_path) - 1) {
+        if (*src == '$' && *(src + 1) >= '0' && *(src + 1) <= '9') {
+          int idx = *(src + 1) - '0';
+          if (matches[idx].rm_so != -1) {
+            int len = matches[idx].rm_eo - matches[idx].rm_so;
+            if (len > 0 && (dest - new_path + len) < (isize)sizeof(new_path) - 1) {
+              memcpy(dest, path_buf + matches[idx].rm_so, len);
+              dest += len;
+            }
+          }
+          src += 2;
+        } else {
+          *dest++ = *src++;
+        }
+      }
+      *dest = '\0';
+      usize nlen = strlen(new_path);
+      char *p = arena_alloc(conn->arena, nlen + 1);
+      if (p) {
+        memcpy(p, new_path, nlen + 1);
+        req->path.ptr = p;
+        req->path.len = nlen;
+      }
+      break;
+    }
+  }
 
   if (ctx->rate_limiter) {
     np_status_t rl = rate_limit_check(ctx->rate_limiter, req->remote_ip);
@@ -57,7 +104,7 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
   }
 
   if (ctx->config->static_root[0] != '\0') {
-    int status = file_server_handle(conn, req, ctx->config->static_root);
+    int status = file_server_handle(conn, req, ctx->config);
     access_log_write(req, status, 0, &start);
     return;
   }
