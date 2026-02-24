@@ -31,6 +31,20 @@ curl ─►  Nproxy  ├──RR──►  Backend  │       │ /healthz     �
 
 ---
 
+## Missing vs Nginx
+
+While Nproxy implements the core Nginx master/worker architecture and event loop, it omits legacy and complex features to remain under 5,000 lines of C:
+
+- **Advanced Routing**: No regex `location` matching, no `rewrite` rules, no `try_files` fallbacks.
+- **Dynamic Modules**: No loadable `.so` modules, Lua/OpenResty integration, or Perl bindings.
+- **Protocol Support**: No HTTP/2, HTTP/3 (QUIC), FastCGI, uWSGI, or gRPC (only HTTP/1.1 proxying and static files).
+- **Caching**: No built-in proxy cache or micro-caching (relies on downstream CDNs).
+- **Compression**: No on-the-fly `gzip` or `brotli` compression.
+- **Websockets**: No native `Upgrade` connection hijacking for bi-directional websockets yet.
+- **Auth/ACLs**: No `auth_basic`, IP whitelisting (`allow`/`deny`), or complex request validation (besides simple rate-limiting).
+
+---
+
 ## Quick Start
 
 ### 1. Install
