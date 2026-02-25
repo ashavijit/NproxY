@@ -15,6 +15,7 @@ typedef void (*ev_handler_fn)(int fd, u32 events, void *ctx);
 typedef struct {
   ev_handler_fn fn;
   void *ctx;
+  int fd;
 } ev_handler_t;
 
 typedef struct event_loop event_loop_t;

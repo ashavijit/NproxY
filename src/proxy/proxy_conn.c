@@ -8,6 +8,7 @@
 #include "http/response.h"
 #include "net/event_loop.h"
 #include "net/socket.h"
+#include "proc/worker.h"
 #include "proxy/upstream.h"
 
 static void send_error(conn_t *conn, int status) {
@@ -49,28 +50,15 @@ static void build_proxy_request(conn_t *conn, http_request_t *req) {
   }
 }
 
-static int req_keep_alive_check(conn_t *conn) {
-  NP_UNUSED(conn);
-  return 0;
-}
-
 void proxy_on_upstream_event(int fd, u32 events, void *arg) {
   conn_t *conn = (conn_t *)arg;
-
-  if (events & (EV_HUP | EPOLLERR)) {
-    event_loop_del(conn->loop, fd);
-    if (buf_readable(&conn->upstream_rbuf) == 0) {
-      send_error(conn, 502);
-    }
-    conn->state = CONN_WRITING_RESPONSE;
-    buf_write_fd(&conn->wbuf, conn->fd);
-    return;
-  }
 
   if (events & EV_WRITE) {
     isize n = buf_write_fd(&conn->upstream_wbuf, fd);
     if (n < 0 && n != NP_ERR_AGAIN) {
       send_error(conn, 502);
+      buf_write_fd(&conn->wbuf, conn->fd);
+      worker_conn_close(conn);
       return;
     }
     if (buf_readable(&conn->upstream_wbuf) == 0) {
@@ -87,9 +75,13 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
       }
     } while (n > 0);
 
-    if (n == NP_ERR_CLOSED) {
+    /* If read returns error and we didn't send anything yet, could be a 502.
+     * However, the connection is closed. We just close cleanly here. */
+    if (n == NP_ERR_CLOSED || n == NP_ERR) {
       event_loop_del(conn->loop, fd);
-      conn->state = req_keep_alive_check(conn) ? CONN_READING_REQUEST : CONN_CLOSING;
+      /* Since we don't parse the upstream response headers and force upstream Connection: close,
+       * we MUST close the downstream connection to signal EOF correctly. */
+      worker_conn_close(conn);
     }
   }
 }

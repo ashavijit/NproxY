@@ -66,6 +66,7 @@ static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events, ev_h
     }
     h->fn = fn;
     h->ctx = ctx;
+    h->fd = fd;
   }
 
   struct epoll_event ev;
@@ -109,7 +110,7 @@ void event_loop_run(event_loop_t *loop, int *running) {
       ev_handler_t *h = (ev_handler_t *)loop->events[i].data.ptr;
       u32 ev = loop->events[i].events;
       if (LIKELY(h)) {
-        h->fn(0, ev, h->ctx);
+        h->fn(h->fd, ev, h->ctx);
       }
     }
   }

@@ -214,3 +214,12 @@ int worker_run(np_config_t *cfg, np_socket_t *listener, int worker_id) {
   log_info("worker[%d] exiting", worker_id);
   return 0;
 }
+
+void worker_conn_close(conn_t *conn) {
+  worker_state_t *ws = (worker_state_t *)conn->worker_state;
+  conn_pool_put(ws->pool, conn);
+}
+
+void worker_client_event_mod(conn_t *conn, u32 events) {
+  event_loop_mod(conn->loop, conn->fd, events, on_client_event, conn);
+}
