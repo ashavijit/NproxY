@@ -22,7 +22,8 @@ static bool path_is_safe(const char *path) {
 
 static const char *file_extension(const char *path) {
   const char *dot = strrchr(path, '.');
-  if (!dot || dot == path) return NULL;
+  if (!dot || dot == path)
+    return NULL;
   return dot + 1;
 }
 
@@ -34,7 +35,8 @@ int file_server_handle(conn_t *conn, http_request_t *req, np_config_t *cfg) {
   char resolved[8192];
   char path[4096];
   usize plen = req->path.len;
-  if (plen >= sizeof(path)) plen = sizeof(path) - 1;
+  if (plen >= sizeof(path))
+    plen = sizeof(path) - 1;
 
   strncpy(path, req->path.ptr, plen);
   path[plen] = '\0';
@@ -56,7 +58,8 @@ int file_server_handle(conn_t *conn, http_request_t *req, np_config_t *cfg) {
       while (*src && (tgt - tmp_path) < (isize)sizeof(tmp_path) - 1) {
         if (strncmp(src, "$uri", 4) == 0) {
           int ulen = snprintf(tgt, sizeof(tmp_path) - (tgt - tmp_path), "%s", path);
-          if (ulen > 0) tgt += ulen;
+          if (ulen > 0)
+            tgt += ulen;
           src += 4;
         } else {
           *tgt++ = *src++;

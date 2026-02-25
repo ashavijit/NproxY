@@ -10,7 +10,8 @@
 
 static void strip_comment(char *line) {
   char *p = strchr(line, '#');
-  if (p) *p = '\0';
+  if (p)
+    *p = '\0';
   char *end = line + strlen(line);
   while (end > line && isspace((unsigned char)*(end - 1))) {
     end--;
@@ -40,6 +41,7 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
   cfg->proxy.mode = BALANCE_ROUND_ROBIN;
   cfg->proxy.connect_timeout = 5;
   cfg->proxy.upstream_timeout = 30;
+  cfg->proxy.keepalive_conns = 16;
 
   cfg->rate_limit.requests_per_second = 1000;
   cfg->rate_limit.burst = 200;
@@ -62,21 +64,26 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
   while (fgets(line, sizeof(line), fp)) {
     strip_comment(line);
     char *p = line;
-    while (isspace((unsigned char)*p)) p++;
-    if (*p == '\0') continue;
+    while (isspace((unsigned char)*p))
+      p++;
+    if (*p == '\0')
+      continue;
 
     if (*p == '[') {
       char *end = strchr(p, ']');
-      if (!end) continue;
+      if (!end)
+        continue;
       usize len = (usize)(end - p - 1);
-      if (len >= sizeof(section)) len = sizeof(section) - 1;
+      if (len >= sizeof(section))
+        len = sizeof(section) - 1;
       memcpy(section, p + 1, len);
       section[len] = '\0';
       continue;
     }
 
     char *eq = strchr(p, '=');
-    if (!eq) continue;
+    if (!eq)
+      continue;
     *eq = '\0';
     char *key = p;
     char *val = eq + 1;
@@ -86,7 +93,8 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
       ke--;
       *ke = '\0';
     }
-    while (isspace((unsigned char)*val)) val++;
+    while (isspace((unsigned char)*val))
+      val++;
     char *ve = val + strlen(val);
     while (ve > val && isspace((unsigned char)*(ve - 1))) {
       ve--;
@@ -120,7 +128,8 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
         if (space) {
           *space = '\0';
           char *repl = space + 1;
-          while (isspace((unsigned char)*repl)) repl++;
+          while (isspace((unsigned char)*repl))
+            repl++;
           rewrite_rule_t *rule = &cfg->rewrite.rules[cfg->rewrite.count];
           strncpy(rule->pattern, val, CONFIG_MAX_STR - 1);
           strncpy(rule->replacement, repl, CONFIG_MAX_STR - 1);
@@ -156,13 +165,16 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
         cfg->proxy.connect_timeout = atoi(val);
       else if (strcmp(key, "upstream_timeout") == 0)
         cfg->proxy.upstream_timeout = atoi(val);
+      else if (strcmp(key, "keepalive_conns") == 0)
+        cfg->proxy.keepalive_conns = atoi(val);
     } else if (strcmp(section, "upstream") == 0) {
       if (strcmp(key, "backend") == 0 && cfg->proxy.backend_count < CONFIG_MAX_BACKENDS) {
         backend_entry_t *be = &cfg->proxy.backends[cfg->proxy.backend_count];
         char *colon = strrchr(val, ':');
         if (colon) {
           usize hlen = (usize)(colon - val);
-          if (hlen >= sizeof(be->host)) hlen = sizeof(be->host) - 1;
+          if (hlen >= sizeof(be->host))
+            hlen = sizeof(be->host) - 1;
           memcpy(be->host, val, hlen);
           be->host[hlen] = '\0';
           be->port = (u16)atoi(colon + 1);

@@ -21,7 +21,8 @@ static const char *level_str[] = {
 
 void log_init(const char *path, log_level_t level) {
   g_log_level = level;
-  if (!path || path[0] == '\0') return;
+  if (!path || path[0] == '\0')
+    return;
   int fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
   if (fd < 0) {
     fprintf(stderr, "log_init: cannot open %s: %s\n", path, strerror(errno));
@@ -38,7 +39,8 @@ void log_close(void) {
 }
 
 static void log_vwrite(log_level_t level, const char *fmt, va_list ap, int use_errno) {
-  if (level > g_log_level) return;
+  if (level > g_log_level)
+    return;
 
   char buf[4096];
   struct timespec ts;
@@ -50,7 +52,8 @@ static void log_vwrite(log_level_t level, const char *fmt, va_list ap, int use_e
                      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
                      ts.tv_nsec / 1000000L, level_str[level], (int)getpid());
 
-  if (hdr < 0) hdr = 0;
+  if (hdr < 0)
+    hdr = 0;
 
   int body = vsnprintf(buf + hdr, sizeof(buf) - (usize)hdr, fmt, ap);
   int total = hdr + (body > 0 ? body : 0);

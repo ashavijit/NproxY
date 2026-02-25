@@ -30,7 +30,8 @@ static u32 ip_hash(const char *ip) {
 
 rate_limiter_t *rate_limiter_create(const np_config_t *cfg) {
   rate_limiter_t *rl = calloc(1, sizeof(*rl));
-  if (!rl) return NULL;
+  if (!rl)
+    return NULL;
   rl->rate = (double)cfg->rate_limit.requests_per_second;
   rl->burst = (double)cfg->rate_limit.burst;
   return rl;
@@ -54,10 +55,12 @@ np_status_t rate_limit_check(rate_limiter_t *rl, const char *ip) {
 
   double elapsed = (double)(now - b->last_refill);
   b->tokens += elapsed * rl->rate;
-  if (b->tokens > rl->burst) b->tokens = rl->burst;
+  if (b->tokens > rl->burst)
+    b->tokens = rl->burst;
   b->last_refill = now;
 
-  if (b->tokens < 1.0) return NP_ERR;
+  if (b->tokens < 1.0)
+    return NP_ERR;
   b->tokens -= 1.0;
   return NP_OK;
 }

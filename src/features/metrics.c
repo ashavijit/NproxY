@@ -36,7 +36,8 @@ void metrics_destroy(np_metrics_t *m) {
 }
 
 void metrics_inc_requests(np_metrics_t *m, int status) {
-  if (!m) return;
+  if (!m)
+    return;
   atomic_fetch_add(&m->requests_total, 1);
   if (status >= 200 && status < 300)
     atomic_fetch_add(&m->requests_2xx, 1);
@@ -47,19 +48,23 @@ void metrics_inc_requests(np_metrics_t *m, int status) {
 }
 
 void metrics_inc_active(np_metrics_t *m) {
-  if (m) atomic_fetch_add(&m->active_connections, 1);
+  if (m)
+    atomic_fetch_add(&m->active_connections, 1);
 }
 
 void metrics_dec_active(np_metrics_t *m) {
-  if (m) atomic_fetch_sub(&m->active_connections, 1);
+  if (m)
+    atomic_fetch_sub(&m->active_connections, 1);
 }
 
 void metrics_inc_upstream_errors(np_metrics_t *m) {
-  if (m) atomic_fetch_add(&m->upstream_errors, 1);
+  if (m)
+    atomic_fetch_add(&m->upstream_errors, 1);
 }
 
 void metrics_observe_latency(np_metrics_t *m, u64 latency_us) {
-  if (!m) return;
+  if (!m)
+    return;
   atomic_fetch_add(&m->latency_sum_us, latency_us);
   atomic_fetch_add(&m->latency_count, 1);
   for (int i = 0; i < HIST_BUCKETS; i++) {

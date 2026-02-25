@@ -173,13 +173,15 @@ static void handle_read(conn_t *conn) {
   }
 
   usize avail = buf_readable(&conn->rbuf);
-  if (avail == 0) return;
+  if (avail == 0)
+    return;
 
   http_parse_state_t ps;
   http_parse_state_init(&ps);
   parse_result_t pr = http_parse_request(&ps, buf_read_ptr(&conn->rbuf), avail);
 
-  if (pr == PARSE_INCOMPLETE) return;
+  if (pr == PARSE_INCOMPLETE)
+    return;
   if (pr == PARSE_ERROR) {
     response_write_error(&conn->wbuf, 400, false);
     conn->state = CONN_WRITING_RESPONSE;
@@ -236,8 +238,10 @@ static void on_client_event(int fd, u32 events, void *arg) {
     return;
   }
 
-  if (events & EV_READ) handle_read(conn);
-  if (events & EV_WRITE) handle_write(conn);
+  if (events & EV_READ)
+    handle_read(conn);
+  if (events & EV_WRITE)
+    handle_write(conn);
 }
 
 static void on_accept_event(int fd, u32 events, void *arg) {
@@ -249,7 +253,8 @@ static void on_accept_event(int fd, u32 events, void *arg) {
     struct sockaddr_in peer;
     int cfd;
     np_status_t rc = socket_accept(ws->listener, &cfd, &peer);
-    if (rc == NP_ERR_AGAIN) break;
+    if (rc == NP_ERR_AGAIN)
+      break;
     if (rc != NP_OK) {
       log_error_errno("accept");
       break;
@@ -278,13 +283,16 @@ int worker_run(np_config_t *cfg, np_socket_t *listener, int worker_id) {
   ws.now = time(NULL);
 
   ws.loop = event_loop_create(NP_EPOLL_EVENTS);
-  if (!ws.loop) return 1;
+  if (!ws.loop)
+    return 1;
 
   ws.tw = timeout_wheel_create(NP_TIMEOUT_BUCKETS, 1);
-  if (!ws.tw) return 1;
+  if (!ws.tw)
+    return 1;
 
   ws.pool = conn_pool_create(4096);
-  if (!ws.pool) return 1;
+  if (!ws.pool)
+    return 1;
 
   ws.hctx.config = cfg;
   ws.hctx.upstream_pool = cfg->proxy.enabled ? upstream_pool_create(cfg) : NULL;
@@ -299,9 +307,12 @@ int worker_run(np_config_t *cfg, np_socket_t *listener, int worker_id) {
 
   event_loop_run(ws.loop, &ws.running);
 
-  if (ws.hctx.upstream_pool) upstream_pool_destroy(ws.hctx.upstream_pool);
-  if (ws.hctx.rate_limiter) rate_limiter_destroy(ws.hctx.rate_limiter);
-  if (ws.hctx.metrics) metrics_destroy(ws.hctx.metrics);
+  if (ws.hctx.upstream_pool)
+    upstream_pool_destroy(ws.hctx.upstream_pool);
+  if (ws.hctx.rate_limiter)
+    rate_limiter_destroy(ws.hctx.rate_limiter);
+  if (ws.hctx.metrics)
+    metrics_destroy(ws.hctx.metrics);
   conn_pool_destroy(ws.pool);
   timeout_wheel_destroy(ws.tw);
   event_loop_destroy(ws.loop);

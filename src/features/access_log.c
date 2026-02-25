@@ -26,7 +26,8 @@ void access_log_close(void) {
 
 void access_log_write(const http_request_t *req, int status, usize bytes,
                       const struct timespec *start) {
-  if (g_access_fd < 0) return;
+  if (g_access_fd < 0)
+    return;
 
   struct timespec end;
   clock_gettime(CLOCK_MONOTONIC, &end);

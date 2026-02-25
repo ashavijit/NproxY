@@ -16,7 +16,8 @@ static void conn_init_bufs(conn_t *c) {
 
 static conn_t *conn_alloc(void) {
   conn_t *c = malloc(sizeof(*c));
-  if (!c) return NULL;
+  if (!c)
+    return NULL;
   memset(c, 0, sizeof(*c));
 
   c->arena = arena_create(NP_ARENA_SIZE);
@@ -52,14 +53,16 @@ static void conn_reset(conn_t *c, int fd, struct sockaddr_in *peer, event_loop_t
   c->response = NULL;
   c->next = NULL;
   c->prev = NULL;
-  if (peer) c->peer = *peer;
+  if (peer)
+    c->peer = *peer;
   arena_reset(c->arena);
   conn_init_bufs(c);
 }
 
 conn_pool_t *conn_pool_create(int max_free) {
   conn_pool_t *p = malloc(sizeof(*p));
-  if (!p) return NULL;
+  if (!p)
+    return NULL;
   p->free_head = NULL;
   p->free_count = 0;
   p->max_free = max_free;
@@ -90,7 +93,8 @@ conn_t *conn_pool_get(conn_pool_t *pool, int fd, struct sockaddr_in *peer, event
   } else {
     c = conn_alloc();
   }
-  if (!c) return NULL;
+  if (!c)
+    return NULL;
   conn_reset(c, fd, peer, loop);
   return c;
 }
@@ -115,7 +119,8 @@ void conn_pool_put(conn_pool_t *pool, conn_t *conn) {
 
 conn_t *conn_create(int fd, struct sockaddr_in *peer, event_loop_t *loop) {
   conn_t *c = conn_alloc();
-  if (!c) return NULL;
+  if (!c)
+    return NULL;
   conn_reset(c, fd, peer, loop);
   return c;
 }

@@ -38,7 +38,8 @@ static const mime_entry_t mime_table[] = {{"html", "text/html; charset=utf-8"},
                                           {NULL, NULL}};
 
 const char *mime_by_extension(const char *ext) {
-  if (!ext) return "application/octet-stream";
+  if (!ext)
+    return "application/octet-stream";
   for (int i = 0; mime_table[i].ext; i++) {
     if (strcasecmp(mime_table[i].ext, ext) == 0) {
       return mime_table[i].type;

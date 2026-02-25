@@ -66,6 +66,7 @@ typedef struct {
     balance_mode_t mode;
     int connect_timeout;
     int upstream_timeout;
+    int keepalive_conns;
     backend_entry_t backends[CONFIG_MAX_BACKENDS];
     int backend_count;
   } proxy;

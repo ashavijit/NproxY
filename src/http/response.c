@@ -7,7 +7,8 @@
 
 http_response_t *response_create(arena_t *arena) {
   http_response_t *r = arena_new(arena, http_response_t);
-  if (!r) return NULL;
+  if (!r)
+    return NULL;
   memset(r, 0, sizeof(*r));
   r->status = 200;
   r->reason = "OK";
@@ -15,12 +16,14 @@ http_response_t *response_create(arena_t *arena) {
 }
 
 void response_set_header(http_response_t *r, arena_t *arena, const char *name, const char *value) {
-  if (r->header_count >= NP_MAX_HEADERS) return;
+  if (r->header_count >= NP_MAX_HEADERS)
+    return;
   usize nlen = strlen(name);
   usize vlen = strlen(value);
   char *n = arena_alloc(arena, nlen + 1);
   char *v = arena_alloc(arena, vlen + 1);
-  if (!n || !v) return;
+  if (!n || !v)
+    return;
   memcpy(n, name, nlen);
   n[nlen] = '\0';
   memcpy(v, value, vlen);
@@ -75,13 +78,15 @@ np_status_t response_serialize(http_response_t *r, np_buf_t *buf) {
   const char *reason = r->reason ? r->reason : status_reason(r->status);
   char tmp[256];
   int n = snprintf(tmp, sizeof(tmp), "HTTP/1.1 %d %s\r\n", r->status, reason);
-  if (buf_writable(buf) < (usize)n) buf_compact(buf);
+  if (buf_writable(buf) < (usize)n)
+    buf_compact(buf);
   memcpy(buf_write_ptr(buf), tmp, (usize)n);
   buf_produce(buf, (usize)n);
 
   for (int i = 0; i < r->header_count; i++) {
     usize hlen = r->headers[i].name.len + r->headers[i].value.len + 4;
-    if (buf_writable(buf) < hlen) buf_compact(buf);
+    if (buf_writable(buf) < hlen)
+      buf_compact(buf);
     u8 *p = buf_write_ptr(buf);
     memcpy(p, r->headers[i].name.ptr, r->headers[i].name.len);
     p += r->headers[i].name.len;
@@ -97,7 +102,8 @@ np_status_t response_serialize(http_response_t *r, np_buf_t *buf) {
   const char *conn_hdr =
       r->keep_alive ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n";
   usize clen = strlen(conn_hdr);
-  if (buf_writable(buf) < clen) buf_compact(buf);
+  if (buf_writable(buf) < clen)
+    buf_compact(buf);
   memcpy(buf_write_ptr(buf), conn_hdr, clen);
   buf_produce(buf, clen);
 
@@ -106,7 +112,8 @@ np_status_t response_serialize(http_response_t *r, np_buf_t *buf) {
     int cn = snprintf(cl, sizeof(cl), "Content-Length: %zu\r\n", r->body.len);
     NP_UNUSED(cn);
 
-    if (buf_writable(buf) < r->body.len) buf_compact(buf);
+    if (buf_writable(buf) < r->body.len)
+      buf_compact(buf);
     if (buf_writable(buf) >= r->body.len) {
       memcpy(buf_write_ptr(buf), r->body.ptr, r->body.len);
       buf_produce(buf, r->body.len);

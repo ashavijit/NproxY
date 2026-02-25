@@ -18,7 +18,8 @@ struct event_loop {
 
 event_loop_t *event_loop_create(int max_events) {
   event_loop_t *loop = malloc(sizeof(*loop));
-  if (!loop) return NULL;
+  if (!loop)
+    return NULL;
 
   loop->epfd = epoll_create1(EPOLL_CLOEXEC);
   if (loop->epfd < 0) {
@@ -43,7 +44,8 @@ event_loop_t *event_loop_create(int max_events) {
 }
 
 void event_loop_destroy(event_loop_t *loop) {
-  if (!loop) return;
+  if (!loop)
+    return;
   for (int i = 0; i < loop->max_fd; i++) {
     free(loop->handlers[i]);
   }
@@ -55,13 +57,15 @@ void event_loop_destroy(event_loop_t *loop) {
 
 static np_status_t loop_ctl(event_loop_t *loop, int op, int fd, u32 events, ev_handler_fn fn,
                             void *ctx) {
-  if (UNLIKELY(fd >= loop->max_fd)) return NP_ERR;
+  if (UNLIKELY(fd >= loop->max_fd))
+    return NP_ERR;
 
   if (op == EPOLL_CTL_ADD || op == EPOLL_CTL_MOD) {
     ev_handler_t *h = loop->handlers[fd];
     if (!h) {
       h = malloc(sizeof(ev_handler_t));
-      if (!h) return NP_ERR_NOMEM;
+      if (!h)
+        return NP_ERR_NOMEM;
       loop->handlers[fd] = h;
     }
     h->fn = fn;
@@ -89,7 +93,8 @@ np_status_t event_loop_mod(event_loop_t *loop, int fd, u32 events, ev_handler_fn
 }
 
 np_status_t event_loop_del(event_loop_t *loop, int fd) {
-  if (fd >= loop->max_fd) return NP_ERR;
+  if (fd >= loop->max_fd)
+    return NP_ERR;
   if (epoll_ctl(loop->epfd, EPOLL_CTL_DEL, fd, NULL) < 0 && errno != EBADF) {
     log_error_errno("epoll_ctl EPOLL_CTL_DEL fd=%d", fd);
   }
@@ -102,7 +107,8 @@ void event_loop_run(event_loop_t *loop, int *running) {
   while (*running) {
     int n = epoll_wait(loop->epfd, loop->events, loop->max_events, 1000);
     if (n < 0) {
-      if (errno == EINTR) continue;
+      if (errno == EINTR)
+        continue;
       log_error_errno("epoll_wait");
       break;
     }

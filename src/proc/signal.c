@@ -18,7 +18,8 @@ static void signal_handler(int fd, u32 events, void *arg) {
   sig_ctx_t *ctx = (sig_ctx_t *)arg;
   struct signalfd_siginfo info;
   isize n = read(fd, &info, sizeof(info));
-  if (n != sizeof(info)) return;
+  if (n != sizeof(info))
+    return;
 
   switch (info.ssi_signo) {
     case SIGTERM:

@@ -12,7 +12,8 @@
 
 http_request_t *request_create(arena_t *arena) {
   http_request_t *req = arena_new(arena, http_request_t);
-  if (!req) return NULL;
+  if (!req)
+    return NULL;
   memset(req, 0, sizeof(*req));
   req->content_length = -1;
   return req;

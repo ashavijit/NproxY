@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "core/log.h"
 #include "features/metrics.h"
@@ -28,14 +29,16 @@ static void build_proxy_request(conn_t *conn, http_request_t *req) {
                    "Connection: %s\r\n",
                    http_method_str(req->method), STR_ARG(req->path),
                    STR_ARG(request_header(req, STR("Host"))), req->remote_ip, req->remote_ip,
-                   req->upgrade ? "Upgrade" : "close");
+                   req->upgrade ? "Upgrade" : "keep-alive");
 
   for (int i = 0; i < req->header_count; i++) {
     str_t name = req->headers[i].name;
-    if (str_ieq(name, STR("Host")) || str_ieq(name, STR("Connection"))) continue;
+    if (str_ieq(name, STR("Host")) || str_ieq(name, STR("Connection")))
+      continue;
     int hn = snprintf(buf + n, sizeof(buf) - (usize)n, STR_FMT ": " STR_FMT "\r\n", STR_ARG(name),
                       STR_ARG(req->headers[i].value));
-    if (hn > 0) n += hn;
+    if (hn > 0)
+      n += hn;
   }
 
   n += snprintf(buf + n, sizeof(buf) - (usize)n, "\r\n");
@@ -87,8 +90,21 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
      * However, the connection is closed. We just close cleanly here. */
     if (n == NP_ERR_CLOSED || n == NP_ERR) {
       event_loop_del(conn->loop, fd);
-      /* Since we don't parse the upstream response headers and force upstream Connection: close,
-       * we MUST close the downstream connection to signal EOF correctly. */
+      conn->upstream_fd = -1;  // Unlink so worker_conn_close doesn't double close
+
+      upstream_pool_t *pool =
+          (upstream_pool_t *)((handler_ctx_t *)conn->worker_state)->upstream_pool;
+
+      if (n == NP_ERR_CLOSED && conn->state != CONN_TUNNEL) {
+        upstream_backend_t *be = (upstream_backend_t *)conn->tls_conn;
+        if (be) {
+          upstream_put_connection(pool, be, fd);
+          worker_conn_close(conn);
+          return;
+        }
+      }
+
+      close(fd);
       worker_conn_close(conn);
     }
   }
@@ -105,14 +121,16 @@ void proxy_handle(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
     return;
   }
 
-  int ufd;
-  if (socket_connect_nonblock(&ufd, be->host, be->port) != NP_OK) {
+  int ufd = upstream_get_connection(pool, be);
+  if (ufd < 0) {
     upstream_release(pool, be, true);
     response_write_error(&conn->wbuf, 502, req->keep_alive);
     conn->state = CONN_WRITING_RESPONSE;
     metrics_inc_upstream_errors(ctx->metrics);
     return;
   }
+
+  conn->tls_conn = be;
 
   conn_set_upstream(conn, ufd);
   build_proxy_request(conn, req);

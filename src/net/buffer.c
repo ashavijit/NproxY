@@ -7,7 +7,8 @@
 
 np_status_t buf_init(np_buf_t *b, usize cap) {
   b->data = malloc(cap);
-  if (!b->data) return NP_ERR_NOMEM;
+  if (!b->data)
+    return NP_ERR_NOMEM;
   b->cap = cap;
   b->read_pos = 0;
   b->write_pos = 0;
@@ -71,7 +72,8 @@ void buf_compact(np_buf_t *b) {
 isize buf_read_fd(np_buf_t *b, int fd) {
   buf_compact(b);
   usize space = buf_writable(b);
-  if (space == 0) return 0;
+  if (space == 0)
+    return 0;
 
   isize n = read(fd, buf_write_ptr(b), space);
   if (n > 0) {
@@ -88,13 +90,15 @@ isize buf_read_fd(np_buf_t *b, int fd) {
 
 isize buf_write_fd(np_buf_t *b, int fd) {
   usize readable = buf_readable(b);
-  if (readable == 0) return 0;
+  if (readable == 0)
+    return 0;
 
   isize n = write(fd, buf_read_ptr(b), readable);
   if (n > 0) {
     buf_consume(b, (usize)n);
   } else if (n < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) return NP_ERR_AGAIN;
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return NP_ERR_AGAIN;
     return NP_ERR;
   }
   return n;
