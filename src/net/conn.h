@@ -36,6 +36,7 @@ struct conn {
   off_t file_remaining;
   bool keep_alive;
   bool tls;
+  void *proxy_pool;
   void *tls_conn;
   void *request;
   void *response;

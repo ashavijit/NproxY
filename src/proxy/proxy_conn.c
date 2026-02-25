@@ -92,8 +92,7 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
       event_loop_del(conn->loop, fd);
       conn->upstream_fd = -1;  // Unlink so worker_conn_close doesn't double close
 
-      upstream_pool_t *pool =
-          (upstream_pool_t *)((handler_ctx_t *)conn->worker_state)->upstream_pool;
+      upstream_pool_t *pool = (upstream_pool_t *)conn->proxy_pool;
 
       if (n == NP_ERR_CLOSED && conn->state != CONN_TUNNEL) {
         upstream_backend_t *be = (upstream_backend_t *)conn->tls_conn;
@@ -110,8 +109,12 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
   }
 }
 
-void proxy_handle(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
-  upstream_pool_t *pool = (upstream_pool_t *)ctx->upstream_pool;
+void proxy_handle(conn_t *conn, http_request_t *req, handler_ctx_t *ctx, np_server_config_t *server,
+                  void *upstream_pool) {
+  NP_UNUSED(ctx);
+  NP_UNUSED(server);
+  upstream_pool_t *pool = (upstream_pool_t *)upstream_pool;
+  conn->proxy_pool = pool;
   upstream_backend_t *be = upstream_select(pool);
 
   if (!be) {

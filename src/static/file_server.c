@@ -31,7 +31,7 @@ static void etag_from_stat(const struct stat *st, char *buf, usize bufsz) {
   snprintf(buf, bufsz, "\"%lx-%lx\"", (unsigned long)st->st_mtime, (unsigned long)st->st_size);
 }
 
-int file_server_handle(conn_t *conn, http_request_t *req, np_config_t *cfg) {
+int file_server_handle(conn_t *conn, http_request_t *req, np_server_config_t *cfg) {
   char resolved[8192];
   char path[4096];
   usize plen = req->path.len;

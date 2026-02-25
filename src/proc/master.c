@@ -16,14 +16,14 @@
 static pid_t worker_pids[MAX_WORKERS];
 static int worker_count = 0;
 
-static void spawn_worker(np_config_t *cfg, np_socket_t *listener, int id) {
+static void spawn_worker(np_config_t *cfg, np_socket_t *listeners, int listener_count, int id) {
   pid_t pid = fork();
   if (pid < 0) {
     log_error_errno("fork");
     return;
   }
   if (pid == 0) {
-    int rc = worker_run(cfg, listener, id);
+    int rc = worker_run(cfg, listeners, listener_count, id);
     exit(rc);
   }
   worker_pids[id] = pid;
@@ -68,22 +68,15 @@ static void wait_workers(void) {
   }
 }
 
-int master_run(np_config_t *cfg) {
+int master_run(np_config_t *cfg, np_socket_t *listeners, int listener_count) {
   setup_signals();
-
-  np_socket_t listener;
-  if (socket_create_listener(&listener, cfg->listen_addr, cfg->listen_port, cfg->backlog) !=
-      NP_OK) {
-    log_error("master: failed to create listener");
-    return 1;
-  }
 
   worker_count = cfg->worker_processes;
   if (worker_count > MAX_WORKERS)
     worker_count = MAX_WORKERS;
 
   for (int i = 0; i < worker_count; i++) {
-    spawn_worker(cfg, &listener, i);
+    spawn_worker(cfg, listeners, listener_count, i);
   }
 
   log_info("master: pid=%d, %d workers running", (int)getpid(), worker_count);
@@ -96,7 +89,7 @@ int master_run(np_config_t *cfg) {
         if (worker_pids[i] == dead) {
           log_warn("master: worker[%d] pid=%d died, respawning", i, (int)dead);
           if (!g_shutdown)
-            spawn_worker(cfg, &listener, i);
+            spawn_worker(cfg, listeners, listener_count, i);
           break;
         }
       }
@@ -108,7 +101,7 @@ int master_run(np_config_t *cfg) {
       kill_workers(SIGTERM);
       wait_workers();
       for (int i = 0; i < worker_count; i++) {
-        spawn_worker(cfg, &listener, i);
+        spawn_worker(cfg, listeners, listener_count, i);
       }
     }
 
@@ -118,6 +111,8 @@ int master_run(np_config_t *cfg) {
   log_info("master: shutting down");
   kill_workers(SIGTERM);
   wait_workers();
-  socket_close(listener.fd);
+  for (int i = 0; i < listener_count; i++) {
+    socket_close(listeners[i].fd);
+  }
   return 0;
 }

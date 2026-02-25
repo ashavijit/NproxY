@@ -28,15 +28,11 @@ typedef struct {
   regex_t re;
 } rewrite_rule_t;
 
+#define CONFIG_MAX_SERVERS 16
+
 typedef struct {
   u16 listen_port;
-  char listen_addr[64];
-  int worker_processes;
-  int backlog;
-  int max_connections;
-  int keepalive_timeout;
-  int read_timeout;
-  int write_timeout;
+  char server_name[CONFIG_MAX_STR];
   char static_root[CONFIG_MAX_STR];
 
   struct {
@@ -70,6 +66,19 @@ typedef struct {
     backend_entry_t backends[CONFIG_MAX_BACKENDS];
     int backend_count;
   } proxy;
+} np_server_config_t;
+
+typedef struct {
+  char listen_addr[64];
+  int worker_processes;
+  int backlog;
+  int max_connections;
+  int keepalive_timeout;
+  int read_timeout;
+  int write_timeout;
+
+  np_server_config_t servers[CONFIG_MAX_SERVERS];
+  int server_count;
 
   struct {
     bool enabled;

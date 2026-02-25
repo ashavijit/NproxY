@@ -10,7 +10,7 @@ typedef struct handler_ctx handler_ctx_t;
 
 struct handler_ctx {
   np_config_t *config;
-  void *upstream_pool;
+  void *upstream_pools[CONFIG_MAX_SERVERS];
   void *rate_limiter;
   void *metrics;
 };

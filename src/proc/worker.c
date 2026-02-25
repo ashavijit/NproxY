@@ -23,7 +23,8 @@
 #include "proxy/upstream.h"
 
 typedef struct {
-  np_socket_t *listener;
+  np_socket_t *listeners;
+  int listener_count;
   event_loop_t *loop;
   timeout_wheel_t *tw;
   handler_ctx_t hctx;
@@ -246,13 +247,22 @@ static void on_client_event(int fd, u32 events, void *arg) {
 
 static void on_accept_event(int fd, u32 events, void *arg) {
   worker_state_t *ws = (worker_state_t *)arg;
-  NP_UNUSED(fd);
   NP_UNUSED(events);
+
+  np_socket_t *listener = NULL;
+  for (int i = 0; i < ws->listener_count; i++) {
+    if (ws->listeners[i].fd == fd) {
+      listener = &ws->listeners[i];
+      break;
+    }
+  }
+  if (!listener)
+    return;
 
   for (;;) {
     struct sockaddr_in peer;
     int cfd;
-    np_status_t rc = socket_accept(ws->listener, &cfd, &peer);
+    np_status_t rc = socket_accept(listener, &cfd, &peer);
     if (rc == NP_ERR_AGAIN)
       break;
     if (rc != NP_OK) {
@@ -272,12 +282,13 @@ static void on_accept_event(int fd, u32 events, void *arg) {
   }
 }
 
-int worker_run(np_config_t *cfg, np_socket_t *listener, int worker_id) {
+int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int worker_id) {
   log_info("worker[%d] pid=%d starting", worker_id, (int)getpid());
 
   worker_state_t ws;
   memset(&ws, 0, sizeof(ws));
-  ws.listener = listener;
+  ws.listeners = listeners;
+  ws.listener_count = listener_count;
   ws.cfg = cfg;
   ws.running = 1;
   ws.now = time(NULL);
@@ -295,7 +306,10 @@ int worker_run(np_config_t *cfg, np_socket_t *listener, int worker_id) {
     return 1;
 
   ws.hctx.config = cfg;
-  ws.hctx.upstream_pool = cfg->proxy.enabled ? upstream_pool_create(cfg) : NULL;
+  for (int i = 0; i < cfg->server_count; i++) {
+    ws.hctx.upstream_pools[i] =
+        cfg->servers[i].proxy.enabled ? upstream_pool_create(&cfg->servers[i]) : NULL;
+  }
   ws.hctx.rate_limiter = cfg->rate_limit.enabled ? rate_limiter_create(cfg) : NULL;
   ws.hctx.metrics = cfg->metrics.enabled ? metrics_create() : NULL;
 
@@ -303,12 +317,17 @@ int worker_run(np_config_t *cfg, np_socket_t *listener, int worker_id) {
 
   signal_init(ws.loop, &ws.running);
 
-  event_loop_add(ws.loop, listener->fd, EV_READ | EV_EDGE, on_accept_event, &ws);
+  for (int i = 0; i < listener_count; i++) {
+    event_loop_add(ws.loop, listeners[i].fd, EV_READ | EV_EDGE, on_accept_event, &ws);
+  }
 
   event_loop_run(ws.loop, &ws.running);
 
-  if (ws.hctx.upstream_pool)
-    upstream_pool_destroy(ws.hctx.upstream_pool);
+  for (int i = 0; i < ws.cfg->server_count; i++) {
+    if (ws.hctx.upstream_pools[i]) {
+      upstream_pool_destroy(ws.hctx.upstream_pools[i]);
+    }
+  }
   if (ws.hctx.rate_limiter)
     rate_limiter_destroy(ws.hctx.rate_limiter);
   if (ws.hctx.metrics)

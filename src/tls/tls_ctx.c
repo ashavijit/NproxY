@@ -12,7 +12,7 @@ static int sni_callback(SSL *ssl, int *al, void *arg) {
   return SSL_TLSEXT_ERR_OK;
 }
 
-np_status_t tls_ctx_create(np_tls_ctx_t *tc, const np_config_t *cfg) {
+np_status_t tls_ctx_create(np_tls_ctx_t *tc, const np_server_config_t *cfg) {
   OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS, NULL);
 
   const SSL_METHOD *method = TLS_server_method();

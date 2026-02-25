@@ -30,13 +30,34 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
 
   inet_ntop(AF_INET, &conn->peer.sin_addr, req->remote_ip, sizeof(req->remote_ip));
 
+  np_server_config_t *server = &ctx->config->servers[0];
+  str_t host_hdr = request_header(req, STR("Host"));
+  if (host_hdr.ptr) {
+    char host_buf[256] = {0};
+    usize copy_len = host_hdr.len < 255 ? host_hdr.len : 255;
+    memcpy(host_buf, host_hdr.ptr, copy_len);
+
+    char *colon = strchr(host_buf, ':');
+    if (colon)
+      *colon = '\0';
+
+    for (int i = 0; i < ctx->config->server_count; i++) {
+      if (ctx->config->servers[i].server_name[0] != '\0' &&
+          strcmp(ctx->config->servers[i].server_name, host_buf) == 0) {
+        server = &ctx->config->servers[i];
+        break;
+      }
+    }
+  }
+
+  // We temporarily cast server to config to avoid breaking module interfaces
   if (module_run_request_handlers(conn, req, ctx->config) == NP_MODULE_HANDLED) {
     access_log_write(req, 200, 0, &start);
     return;
   }
 
-  for (int i = 0; i < ctx->config->rewrite.count; i++) {
-    rewrite_rule_t *rule = &ctx->config->rewrite.rules[i];
+  for (int i = 0; i < server->rewrite.count; i++) {
+    rewrite_rule_t *rule = &server->rewrite.rules[i];
     regmatch_t matches[10];
     char path_buf[1024];
     usize plen = req->path.len < sizeof(path_buf) - 1 ? req->path.len : sizeof(path_buf) - 1;
@@ -97,14 +118,17 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
     return;
   }
 
-  if (ctx->config->proxy.enabled && ctx->upstream_pool) {
-    proxy_handle(conn, req, ctx);
+  int s_idx = server - ctx->config->servers;
+  if (server->proxy.enabled && ctx->upstream_pools[s_idx]) {
+    // Note: proxy_handle expects ctx, we'll need to patch proxy_conn to use server explicitly
+    // later. For now, upstream_pool array mapping needs to happen outside this.
+    proxy_handle(conn, req, ctx, server, ctx->upstream_pools[s_idx]);
     access_log_write(req, 0, 0, &start);
     return;
   }
 
-  if (ctx->config->static_root[0] != '\0') {
-    int status = file_server_handle(conn, req, ctx->config);
+  if (server->static_root[0] != '\0') {
+    int status = file_server_handle(conn, req, server);
     access_log_write(req, status, 0, &start);
     return;
   }

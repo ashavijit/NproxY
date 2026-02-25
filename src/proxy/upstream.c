@@ -8,7 +8,7 @@
 #include "net/socket.h"
 #include "proxy/balancer.h"
 
-upstream_pool_t *upstream_pool_create(const np_config_t *cfg) {
+upstream_pool_t *upstream_pool_create(const np_server_config_t *cfg) {
   upstream_pool_t *pool = malloc(sizeof(*pool));
   if (!pool)
     return NULL;
