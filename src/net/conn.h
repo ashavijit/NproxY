@@ -14,6 +14,7 @@ typedef enum {
   CONN_PROXYING = 2,
   CONN_TUNNEL = 3,
   CONN_CLOSING = 4,
+  CONN_SENDFILE = 5,
 } conn_state_t;
 
 typedef struct conn conn_t;
@@ -30,6 +31,9 @@ struct conn {
   np_buf_t upstream_wbuf;
   struct sockaddr_in peer;
   time_t last_active;
+  int file_fd;
+  off_t file_offset;
+  off_t file_remaining;
   bool keep_alive;
   bool tls;
   void *tls_conn;

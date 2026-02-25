@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 
 #include "core/log.h"
@@ -44,6 +45,52 @@ static void on_client_event(int fd, u32 events, void *arg);
 static void handle_write(conn_t *conn) {
   worker_state_t *ws = (worker_state_t *)conn->worker_state;
   isize n;
+
+  if (conn->state == CONN_SENDFILE) {
+    if (buf_readable(&conn->wbuf) > 0) {
+      do {
+        n = buf_write_fd(&conn->wbuf, conn->fd);
+      } while (n > 0);
+      if (buf_readable(&conn->wbuf) > 0) {
+        worker_client_event_mod(conn, EV_WRITE | EV_READ | EV_HUP | EV_EDGE);
+        return;
+      }
+    }
+
+    if (conn->file_remaining > 0) {
+      ssize_t sent;
+      do {
+        sent = sendfile(conn->fd, conn->file_fd, &conn->file_offset, (size_t)conn->file_remaining);
+        if (sent > 0) {
+          conn->file_remaining -= sent;
+        }
+      } while (sent > 0 && conn->file_remaining > 0);
+
+      if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        log_error_errno("sendfile fd=%d", conn->fd);
+        conn_pool_put(ws->pool, conn);
+        return;
+      }
+    }
+
+    if (conn->file_remaining == 0) {
+      close(conn->file_fd);
+      conn->file_fd = -1;
+
+      if (!conn->keep_alive) {
+        conn_pool_put(ws->pool, conn);
+        return;
+      }
+      arena_reset(conn->arena);
+      conn->request = NULL;
+      conn->response = NULL;
+      conn->state = CONN_READING_REQUEST;
+      worker_client_event_mod(conn, EV_READ | EV_HUP | EV_EDGE);
+    } else {
+      worker_client_event_mod(conn, EV_WRITE | EV_READ | EV_HUP | EV_EDGE);
+    }
+    return;
+  }
 
   if (conn->state == CONN_PROXYING || conn->state == CONN_TUNNEL) {
     do {

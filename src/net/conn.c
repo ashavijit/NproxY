@@ -39,6 +39,9 @@ static conn_t *conn_alloc(void) {
 static void conn_reset(conn_t *c, int fd, struct sockaddr_in *peer, event_loop_t *loop) {
   c->fd = fd;
   c->upstream_fd = -1;
+  c->file_fd = -1;
+  c->file_offset = 0;
+  c->file_remaining = 0;
   c->state = CONN_READING_REQUEST;
   c->loop = loop;
   c->last_active = 0;
@@ -132,6 +135,10 @@ void conn_close(conn_t *conn) {
     event_loop_del(conn->loop, conn->upstream_fd);
     close(conn->upstream_fd);
     conn->upstream_fd = -1;
+  }
+  if (conn->file_fd >= 0) {
+    close(conn->file_fd);
+    conn->file_fd = -1;
   }
   conn->state = CONN_CLOSING;
 }

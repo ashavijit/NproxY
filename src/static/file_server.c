@@ -12,6 +12,8 @@
 #include "core/log.h"
 #include "core/string_util.h"
 #include "http/response.h"
+#include "net/event_loop.h"
+#include "proc/worker.h"
 #include "static/mime.h"
 
 static bool path_is_safe(const char *path) {
@@ -128,19 +130,12 @@ int file_server_handle(conn_t *conn, http_request_t *req, np_config_t *cfg) {
 
   buf_write_fd(&conn->wbuf, conn->fd);
 
-  off_t offset = 0;
-  off_t remaining = st.st_size;
-  while (remaining > 0) {
-    ssize_t sent = sendfile(conn->fd, fd, &offset, (usize)remaining);
-    if (sent < 0) {
-      if (errno == EAGAIN) break;
-      log_error_errno("sendfile fd=%d", conn->fd);
-      break;
-    }
-    remaining -= sent;
-  }
+  conn->file_fd = fd;
+  conn->file_offset = 0;
+  conn->file_remaining = st.st_size;
+  conn->state = CONN_SENDFILE;
 
-  close(fd);
-  conn->state = req->keep_alive ? CONN_READING_REQUEST : CONN_CLOSING;
+  worker_client_event_mod(conn, EV_WRITE | EV_READ | EV_HUP | EV_EDGE);
+
   return 200;
 }
