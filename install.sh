@@ -95,7 +95,7 @@ install_systemd() {
     cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Nproxy HTTP Reverse Proxy
-Documentation=https://github.com/youruser/nproxy
+Documentation=https://github.com/ashavijit/NproxY
 After=network.target
 Wants=network.target
 

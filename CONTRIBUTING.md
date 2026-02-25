@@ -3,7 +3,7 @@
 ## Getting Started
 
 ```bash
-git clone https://github.com/youruser/nproxy.git
+git clone https://github.com/ashavijit/NproxY.git
 cd nproxy
 make debug    # build with sanitizers
 ```

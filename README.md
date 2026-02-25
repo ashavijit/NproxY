@@ -56,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/youruser/nproxy/main/install.sh | b
 Or build from source:
 
 ```bash
-git clone https://github.com/youruser/nproxy.git
+git clone https://github.com/ashavijit/NproxY.git
 cd nproxy
 bash install.sh --local          # install to ./bin/nproxy
 ```
