@@ -31,6 +31,7 @@ bool str_starts_with(str_t s, str_t prefix);
 bool str_ends_with(str_t s, str_t suffix);
 str_t str_slice(str_t s, usize start, usize end);
 int str_to_int(str_t s, i64 *out);
+bool str_contains_i(str_t haystack, str_t needle);
 
 char *str_dup_cstr(const char *s, usize len);
 

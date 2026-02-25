@@ -26,6 +26,8 @@ np_status_t request_populate(http_request_t *req, http_parse_state_t *ps, const 
   req->chunked = ps->chunked;
   req->keep_alive = ps->keep_alive;
   req->header_count = ps->header_count;
+  req->upgrade = ps->upgrade;
+  req->upgrade_protocol = ps->upgrade_protocol;
 
   str_t uri = ps->uri;
   const char *q = memchr(uri.ptr, '?', uri.len);

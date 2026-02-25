@@ -18,6 +18,8 @@ typedef struct {
   i64 content_length;
   bool chunked;
   bool keep_alive;
+  bool upgrade;
+  str_t upgrade_protocol;
   str_t body;
   char remote_ip[INET_ADDRSTRLEN];
   u64 recv_ts_us;

@@ -25,9 +25,10 @@ static void build_proxy_request(conn_t *conn, http_request_t *req) {
                    "\r\n"
                    "X-Real-IP: %s\r\n"
                    "X-Forwarded-For: %s\r\n"
-                   "Connection: close\r\n",
+                   "Connection: %s\r\n",
                    http_method_str(req->method), STR_ARG(req->path),
-                   STR_ARG(request_header(req, STR("Host"))), req->remote_ip, req->remote_ip);
+                   STR_ARG(request_header(req, STR("Host"))), req->remote_ip, req->remote_ip,
+                   req->upgrade ? "Upgrade" : "close");
 
   for (int i = 0; i < req->header_count; i++) {
     str_t name = req->headers[i].name;
@@ -71,9 +72,16 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
     do {
       n = buf_read_fd(&conn->upstream_rbuf, fd);
       if (n > 0) {
-        buf_write_fd(&conn->upstream_rbuf, conn->fd);
+        isize wn;
+        do {
+          wn = buf_write_fd(&conn->upstream_rbuf, conn->fd);
+        } while (wn > 0);
       }
     } while (n > 0);
+
+    if (buf_readable(&conn->upstream_rbuf) > 0) {
+      worker_client_event_mod(conn, EV_WRITE | EV_READ | EV_HUP | EV_EDGE);
+    }
 
     /* If read returns error and we didn't send anything yet, could be a 502.
      * However, the connection is closed. We just close cleanly here. */
@@ -108,7 +116,7 @@ void proxy_handle(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
 
   conn_set_upstream(conn, ufd);
   build_proxy_request(conn, req);
-  conn->state = CONN_PROXYING;
+  conn->state = req->upgrade ? CONN_TUNNEL : CONN_PROXYING;
 
   event_loop_add(conn->loop, ufd, EV_WRITE | EV_READ | EV_HUP | EV_EDGE, proxy_on_upstream_event,
                  conn);

@@ -11,8 +11,9 @@
 typedef enum {
   CONN_READING_REQUEST = 0,
   CONN_WRITING_RESPONSE,
-  CONN_PROXYING,
-  CONN_CLOSING,
+  CONN_PROXYING = 2,
+  CONN_TUNNEL = 3,
+  CONN_CLOSING = 4,
 } conn_state_t;
 
 typedef struct conn conn_t;

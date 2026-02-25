@@ -75,3 +75,20 @@ char *str_dup_cstr(const char *s, usize len) {
   buf[len] = '\0';
   return buf;
 }
+/*
+This function checks if the haystack string contains the needle string, ignoring case.
+@Example : 
+  str_contains_i("Hello World", "world") == true
+  str_contains_i("Hello World", "World") == true
+  str_contains_i("Hello World", "world") == true
+*/
+bool str_contains_i(str_t haystack, str_t needle) {
+  if (needle.len == 0) return true;
+  if (haystack.len < needle.len) return false;
+  for (usize i = 0; i <= haystack.len - needle.len; i++) {
+    if (np_strncasecmp(haystack.ptr + i, needle.ptr, needle.len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}

@@ -18,6 +18,7 @@
 #include "net/event_loop.h"
 #include "net/timeout.h"
 #include "proc/signal.h"
+#include "proxy/proxy_conn.h"
 #include "proxy/upstream.h"
 
 typedef struct {
@@ -43,6 +44,21 @@ static void on_client_event(int fd, u32 events, void *arg);
 static void handle_write(conn_t *conn) {
   worker_state_t *ws = (worker_state_t *)conn->worker_state;
   isize n;
+
+  if (conn->state == CONN_PROXYING || conn->state == CONN_TUNNEL) {
+    do {
+      n = buf_write_fd(&conn->upstream_rbuf, conn->fd);
+    } while (n > 0);
+
+    if (buf_readable(&conn->upstream_rbuf) == 0) {
+      event_loop_mod(conn->loop, conn->fd, EV_READ | EV_HUP | EV_EDGE, on_client_event, conn);
+    } else {
+      event_loop_mod(conn->loop, conn->fd, EV_WRITE | EV_READ | EV_HUP | EV_EDGE, on_client_event,
+                     conn);
+    }
+    return;
+  }
+
   do {
     n = buf_write_fd(&conn->wbuf, conn->fd);
   } while (n > 0);
@@ -63,6 +79,39 @@ static void handle_write(conn_t *conn) {
 static void handle_read(conn_t *conn) {
   worker_state_t *ws = (worker_state_t *)conn->worker_state;
   isize n;
+
+  if (conn->state == CONN_TUNNEL) {
+    isize n;
+    do {
+      n = buf_read_fd(&conn->upstream_wbuf, conn->fd);
+    } while (n > 0);
+
+    log_debug("tunnel client read n=%zd readable=%zu", n, buf_readable(&conn->upstream_wbuf));
+
+    if (n == NP_ERR_CLOSED || (n == NP_ERR && n != NP_ERR_AGAIN)) {
+      worker_conn_close(conn);
+      return;
+    }
+
+    if (buf_readable(&conn->upstream_wbuf) > 0) {
+      do {
+        n = buf_write_fd(&conn->upstream_wbuf, conn->upstream_fd);
+      } while (n > 0);
+
+      log_debug("tunnel client wrote to backend n=%zd remainder=%zu", n,
+                buf_readable(&conn->upstream_wbuf));
+
+      if (buf_readable(&conn->upstream_wbuf) == 0) {
+        event_loop_mod(conn->loop, conn->upstream_fd, EV_READ | EV_HUP | EV_EDGE,
+                       proxy_on_upstream_event, conn);
+      } else {
+        event_loop_mod(conn->loop, conn->upstream_fd, EV_WRITE | EV_READ | EV_HUP | EV_EDGE,
+                       proxy_on_upstream_event, conn);
+      }
+    }
+    return;
+  }
+
   do {
     n = buf_read_fd(&conn->rbuf, conn->fd);
   } while (n > 0);
@@ -103,7 +152,7 @@ static void handle_read(conn_t *conn) {
 
   handler_dispatch(conn, req, &ws->hctx);
 
-  if (conn->state == CONN_PROXYING) {
+  if (conn->state == CONN_PROXYING || conn->state == CONN_TUNNEL) {
     return;
   }
 

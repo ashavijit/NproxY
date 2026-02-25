@@ -41,6 +41,8 @@ typedef struct {
   bool chunked;
   bool keep_alive;
   bool has_connection_header;
+  bool upgrade;
+  str_t upgrade_protocol;
   usize body_offset;
   usize parsed_bytes;
 } http_parse_state_t;

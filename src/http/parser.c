@@ -86,6 +86,11 @@ parse_result_t http_parse_request(http_parse_state_t *s, const u8 *data, usize l
     } else if (str_ieq(name, STR("Connection"))) {
       s->has_connection_header = true;
       s->keep_alive = !str_ieq(value, STR("close"));
+      if (str_contains_i(value, STR("upgrade"))) {
+        s->upgrade = true;
+      }
+    } else if (str_ieq(name, STR("Upgrade"))) {
+      s->upgrade_protocol = value;
     }
 
     cur = line_end + 2;
