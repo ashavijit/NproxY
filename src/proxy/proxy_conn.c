@@ -7,6 +7,7 @@
 
 #include "cache/cache.h"
 #include "core/log.h"
+#include "features/access_log.h"
 #include "features/metrics.h"
 #include "http/response.h"
 #include "net/event_loop.h"
@@ -77,6 +78,16 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
     do {
       n = buf_read_fd(&conn->upstream_rbuf, fd);
       if (n > 0) {
+        if (conn->proxy_status == 0) {
+          u8 *p = buf_read_ptr(&conn->upstream_rbuf);
+          usize readable = buf_readable(&conn->upstream_rbuf);
+          if (readable >= 12 && p[0] == 'H' && p[1] == 'T' && p[2] == 'T' && p[3] == 'P') {
+            char *sp = memchr(p, ' ', readable);
+            if (sp && (usize)(sp - (char *)p) + 4 <= readable) {
+              conn->proxy_status = atoi(sp + 1);
+            }
+          }
+        }
         usize readable = buf_readable(&conn->upstream_rbuf);
         if (conn->cache_store && readable > 0) {
           usize needed = conn->cache_len + readable;
@@ -126,6 +137,12 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
 
         upstream_backend_t *be = (upstream_backend_t *)conn->tls_conn;
         if (be) {
+          http_request_t *req = (http_request_t *)conn->request;
+          if (req) {
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            access_log_write(req, conn->proxy_status, 0, &now);
+          }
           upstream_put_connection(pool, be, fd);
           worker_conn_close(conn);
           return;

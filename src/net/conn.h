@@ -47,6 +47,7 @@ struct conn {
   u8 *cache_buf;
   usize cache_len;
   usize cache_cap;
+  int proxy_status;
   conn_t *next;
   conn_t *prev;
 };

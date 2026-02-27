@@ -148,7 +148,6 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
       strncpy(conn->cache_key, cache_key, sizeof(conn->cache_key) - 1);
     }
     proxy_handle(conn, req, ctx, server, ctx->upstream_pools[s_idx]);
-    access_log_write(req, 0, 0, &start);
     return;
   }
 

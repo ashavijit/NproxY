@@ -31,6 +31,7 @@ typedef struct {
   handler_ctx_t hctx;
   conn_pool_t *pool;
   int running;
+  int active_conns;
   np_config_t *cfg;
   time_t now;
 } worker_state_t;
@@ -278,6 +279,7 @@ static void on_accept_event(int fd, u32 events, void *arg) {
     }
 
     conn->worker_state = ws;
+    ws->active_conns++;
     event_loop_add(ws->loop, cfd, EV_READ | EV_HUP | EV_EDGE, on_client_event, conn);
     timeout_add(ws->tw, ws->cfg->read_timeout, on_conn_timeout, conn);
   }
@@ -334,6 +336,18 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
 
   event_loop_run(ws.loop, &ws.running);
 
+  log_info("worker[%d] draining %d active connections", worker_id, ws.active_conns);
+  for (int i = 0; i < listener_count; i++) {
+    event_loop_del(ws.loop, listeners[i].fd);
+  }
+  int drain_timeout = cfg->shutdown_timeout > 0 ? cfg->shutdown_timeout : 5;
+  time_t drain_start = time(NULL);
+  while (ws.active_conns > 0 && (time(NULL) - drain_start) < drain_timeout) {
+    usleep(100000);
+  }
+  if (ws.active_conns > 0)
+    log_warn("worker[%d] timeout, %d connections still active", worker_id, ws.active_conns);
+
   for (int i = 0; i < ws.cfg->server_count; i++) {
     if (ws.hctx.upstream_pools[i]) {
       upstream_pool_destroy(ws.hctx.upstream_pools[i]);
@@ -358,6 +372,7 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
 
 void worker_conn_close(conn_t *conn) {
   worker_state_t *ws = (worker_state_t *)conn->worker_state;
+  ws->active_conns--;
   conn_pool_put(ws->pool, conn);
 }
 

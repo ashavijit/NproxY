@@ -249,7 +249,15 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
         cfg->process.daemon = parse_bool(val);
       else if (strcmp(key, "pid_file") == 0)
         strncpy(cfg->process.pid_file, val, sizeof(cfg->process.pid_file) - 1);
+    } else if (strcmp(section, "gzip") == 0) {
+      if (strcmp(key, "enabled") == 0)
+        srv->gzip.enabled = parse_bool(val);
+      else if (strcmp(key, "min_length") == 0)
+        srv->gzip.min_length = atoi(val);
     }
+
+    if (strcmp(section, "global") == 0 && strcmp(key, "shutdown_timeout") == 0)
+      cfg->shutdown_timeout = atoi(val);
   }
 
   fclose(fp);
