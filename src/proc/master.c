@@ -68,7 +68,8 @@ static void wait_workers(void) {
   }
 }
 
-int master_run(np_config_t *cfg, np_socket_t *listeners, int listener_count) {
+int master_run(np_config_t *cfg, np_socket_t *listeners, int listener_count,
+               const char *config_path) {
   setup_signals();
 
   worker_count = cfg->worker_processes;
@@ -97,11 +98,52 @@ int master_run(np_config_t *cfg, np_socket_t *listeners, int listener_count) {
 
     if (g_reload) {
       g_reload = 0;
-      log_info("master: SIGHUP – graceful reload");
-      kill_workers(SIGTERM);
-      wait_workers();
-      for (int i = 0; i < worker_count; i++) {
-        spawn_worker(cfg, listeners, listener_count, i);
+      log_info("master: SIGHUP - reloading configuration");
+
+      np_config_t new_cfg;
+      if (config_load(&new_cfg, config_path) == NP_OK) {
+        kill_workers(SIGTERM);
+        wait_workers();
+
+        for (int i = 0; i < listener_count; i++) {
+          socket_close(listeners[i].fd);
+        }
+
+        *cfg = new_cfg;
+        listener_count = 0;
+
+        u16 bound_ports[CONFIG_MAX_SERVERS];
+        for (int i = 0; i < cfg->server_count; i++) {
+          u16 port = cfg->servers[i].listen_port;
+          bool already = false;
+          for (int j = 0; j < listener_count; j++) {
+            if (bound_ports[j] == port) {
+              already = true;
+              break;
+            }
+          }
+          if (!already) {
+            if (socket_create_listener(&listeners[listener_count], cfg->listen_addr, port,
+                                       cfg->backlog) == NP_OK) {
+              bound_ports[listener_count] = port;
+              listener_count++;
+            } else {
+              log_error("master: reload failed to bind %s:%d", cfg->listen_addr, port);
+            }
+          }
+        }
+
+        worker_count = cfg->worker_processes;
+        if (worker_count > MAX_WORKERS)
+          worker_count = MAX_WORKERS;
+
+        for (int i = 0; i < worker_count; i++) {
+          spawn_worker(cfg, listeners, listener_count, i);
+        }
+
+        log_info("master: reload complete, %d workers running", worker_count);
+      } else {
+        log_error("master: reload failed, keeping current configuration");
       }
     }
 

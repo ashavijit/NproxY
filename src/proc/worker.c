@@ -7,6 +7,7 @@
 #include <sys/sendfile.h>
 #include <unistd.h>
 
+#include "cache/cache.h"
 #include "core/log.h"
 #include "features/access_log.h"
 #include "features/metrics.h"
@@ -313,6 +314,16 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
   ws.hctx.rate_limiter = cfg->rate_limit.enabled ? rate_limiter_create(cfg) : NULL;
   ws.hctx.metrics = cfg->metrics.enabled ? metrics_create() : NULL;
 
+  for (int i = 0; i < cfg->server_count; i++) {
+    if (cfg->servers[i].cache.enabled && cfg->servers[i].cache.root[0] != '\0') {
+      int max_ent =
+          cfg->servers[i].cache.max_entries > 0 ? cfg->servers[i].cache.max_entries : 1024;
+      ws.hctx.cache_stores[i] = cache_store_create(cfg->servers[i].cache.root, max_ent);
+    } else {
+      ws.hctx.cache_stores[i] = NULL;
+    }
+  }
+
   access_log_init(cfg->log.access_log);
 
   signal_init(ws.loop, &ws.running);
@@ -332,6 +343,10 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
     rate_limiter_destroy(ws.hctx.rate_limiter);
   if (ws.hctx.metrics)
     metrics_destroy(ws.hctx.metrics);
+  for (int i = 0; i < ws.cfg->server_count; i++) {
+    if (ws.hctx.cache_stores[i])
+      cache_store_destroy(ws.hctx.cache_stores[i]);
+  }
   conn_pool_destroy(ws.pool);
   timeout_wheel_destroy(ws.tw);
   event_loop_destroy(ws.loop);

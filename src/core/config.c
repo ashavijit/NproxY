@@ -235,6 +235,20 @@ np_status_t config_load(np_config_t *cfg, const char *path) {
         cfg->metrics.enabled = parse_bool(val);
       else if (strcmp(key, "path") == 0)
         strncpy(cfg->metrics.path, val, sizeof(cfg->metrics.path) - 1);
+    } else if (strcmp(section, "cache") == 0) {
+      if (strcmp(key, "enabled") == 0)
+        srv->cache.enabled = parse_bool(val);
+      else if (strcmp(key, "root") == 0)
+        strncpy(srv->cache.root, val, sizeof(srv->cache.root) - 1);
+      else if (strcmp(key, "default_ttl") == 0)
+        srv->cache.default_ttl = atoi(val);
+      else if (strcmp(key, "max_entries") == 0)
+        srv->cache.max_entries = atoi(val);
+    } else if (strcmp(section, "process") == 0) {
+      if (strcmp(key, "daemon") == 0)
+        cfg->process.daemon = parse_bool(val);
+      else if (strcmp(key, "pid_file") == 0)
+        strncpy(cfg->process.pid_file, val, sizeof(cfg->process.pid_file) - 1);
     }
   }
 

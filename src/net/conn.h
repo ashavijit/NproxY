@@ -42,6 +42,11 @@ struct conn {
   void *response;
   event_loop_t *loop;
   void *worker_state;
+  void *cache_store;
+  char cache_key[256];
+  u8 *cache_buf;
+  usize cache_len;
+  usize cache_cap;
   conn_t *next;
   conn_t *prev;
 };
