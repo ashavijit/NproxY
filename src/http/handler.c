@@ -3,9 +3,11 @@
 #include <arpa/inet.h>
 #include <regex.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "cache/cache.h"
 #include "core/log.h"
 #include "core/string_util.h"
 #include "features/access_log.h"
@@ -119,11 +121,33 @@ void handler_dispatch(conn_t *conn, http_request_t *req, handler_ctx_t *ctx) {
   }
 
   int s_idx = server - ctx->config->servers;
+
+  if (server->cache.enabled && ctx->cache_stores[s_idx] && req->method == HTTP_METHOD_GET) {
+    char cache_key[1024];
+    cache_key_from_request(req, cache_key, sizeof(cache_key));
+    cache_entry_t entry;
+    if (cache_lookup(ctx->cache_stores[s_idx], cache_key, &entry) == NP_OK) {
+      if (entry.data && entry.data_len > 0) {
+        if (buf_writable(&conn->wbuf) >= entry.data_len) {
+          memcpy(buf_write_ptr(&conn->wbuf), entry.data, entry.data_len);
+          buf_produce(&conn->wbuf, entry.data_len);
+        }
+        free(entry.data);
+        conn->state = CONN_WRITING_RESPONSE;
+        access_log_write(req, entry.hdr.status, 0, &start);
+        return;
+      }
+    }
+  }
+
   if (server->proxy.enabled && ctx->upstream_pools[s_idx]) {
-    // Note: proxy_handle expects ctx, we'll need to patch proxy_conn to use server explicitly
-    // later. For now, upstream_pool array mapping needs to happen outside this.
+    if (server->cache.enabled && ctx->cache_stores[s_idx]) {
+      conn->cache_store = ctx->cache_stores[s_idx];
+      char cache_key[1024];
+      cache_key_from_request(req, cache_key, sizeof(cache_key));
+      strncpy(conn->cache_key, cache_key, sizeof(conn->cache_key) - 1);
+    }
     proxy_handle(conn, req, ctx, server, ctx->upstream_pools[s_idx]);
-    access_log_write(req, 0, 0, &start);
     return;
   }
 

@@ -7,6 +7,7 @@
 #include <sys/sendfile.h>
 #include <unistd.h>
 
+#include "cache/cache.h"
 #include "core/log.h"
 #include "features/access_log.h"
 #include "features/metrics.h"
@@ -30,6 +31,7 @@ typedef struct {
   handler_ctx_t hctx;
   conn_pool_t *pool;
   int running;
+  int active_conns;
   np_config_t *cfg;
   time_t now;
 } worker_state_t;
@@ -277,6 +279,7 @@ static void on_accept_event(int fd, u32 events, void *arg) {
     }
 
     conn->worker_state = ws;
+    ws->active_conns++;
     event_loop_add(ws->loop, cfd, EV_READ | EV_HUP | EV_EDGE, on_client_event, conn);
     timeout_add(ws->tw, ws->cfg->read_timeout, on_conn_timeout, conn);
   }
@@ -313,6 +316,16 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
   ws.hctx.rate_limiter = cfg->rate_limit.enabled ? rate_limiter_create(cfg) : NULL;
   ws.hctx.metrics = cfg->metrics.enabled ? metrics_create() : NULL;
 
+  for (int i = 0; i < cfg->server_count; i++) {
+    if (cfg->servers[i].cache.enabled && cfg->servers[i].cache.root[0] != '\0') {
+      int max_ent =
+          cfg->servers[i].cache.max_entries > 0 ? cfg->servers[i].cache.max_entries : 1024;
+      ws.hctx.cache_stores[i] = cache_store_create(cfg->servers[i].cache.root, max_ent);
+    } else {
+      ws.hctx.cache_stores[i] = NULL;
+    }
+  }
+
   access_log_init(cfg->log.access_log);
 
   signal_init(ws.loop, &ws.running);
@@ -323,6 +336,18 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
 
   event_loop_run(ws.loop, &ws.running);
 
+  log_info("worker[%d] draining %d active connections", worker_id, ws.active_conns);
+  for (int i = 0; i < listener_count; i++) {
+    event_loop_del(ws.loop, listeners[i].fd);
+  }
+  int drain_timeout = cfg->shutdown_timeout > 0 ? cfg->shutdown_timeout : 5;
+  time_t drain_start = time(NULL);
+  while (ws.active_conns > 0 && (time(NULL) - drain_start) < drain_timeout) {
+    usleep(100000);
+  }
+  if (ws.active_conns > 0)
+    log_warn("worker[%d] timeout, %d connections still active", worker_id, ws.active_conns);
+
   for (int i = 0; i < ws.cfg->server_count; i++) {
     if (ws.hctx.upstream_pools[i]) {
       upstream_pool_destroy(ws.hctx.upstream_pools[i]);
@@ -332,6 +357,10 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
     rate_limiter_destroy(ws.hctx.rate_limiter);
   if (ws.hctx.metrics)
     metrics_destroy(ws.hctx.metrics);
+  for (int i = 0; i < ws.cfg->server_count; i++) {
+    if (ws.hctx.cache_stores[i])
+      cache_store_destroy(ws.hctx.cache_stores[i]);
+  }
   conn_pool_destroy(ws.pool);
   timeout_wheel_destroy(ws.tw);
   event_loop_destroy(ws.loop);
@@ -343,6 +372,7 @@ int worker_run(np_config_t *cfg, np_socket_t *listeners, int listener_count, int
 
 void worker_conn_close(conn_t *conn) {
   worker_state_t *ws = (worker_state_t *)conn->worker_state;
+  ws->active_conns--;
   conn_pool_put(ws->pool, conn);
 }
 

@@ -66,6 +66,18 @@ typedef struct {
     backend_entry_t backends[CONFIG_MAX_BACKENDS];
     int backend_count;
   } proxy;
+
+  struct {
+    bool enabled;
+    char root[CONFIG_MAX_STR];
+    int default_ttl;
+    int max_entries;
+  } cache;
+
+  struct {
+    bool enabled;
+    int min_length;
+  } gzip;
 } np_server_config_t;
 
 typedef struct {
@@ -96,6 +108,13 @@ typedef struct {
     bool enabled;
     char path[CONFIG_MAX_STR];
   } metrics;
+
+  struct {
+    bool daemon;
+    char pid_file[CONFIG_MAX_STR];
+  } process;
+
+  int shutdown_timeout;
 } np_config_t;
 
 np_status_t config_load(np_config_t *cfg, const char *path);

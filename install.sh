@@ -1,188 +1,176 @@
 #!/usr/bin/env bash
-# Nproxy installer
-# Usage:
-#   bash install.sh                # install to /usr/local/bin (requires sudo)
-#   bash install.sh --local        # install to ./bin/nproxy (no sudo)
-#   bash install.sh --systemd      # install + install systemd service
-#   bash install.sh --uninstall    # remove installed files
-
 set -euo pipefail
 
-BINARY_NAME="nproxy"
-INSTALL_PREFIX="/usr/local"
-CONFIG_DIR="/etc/nproxy"
-LOG_DIR="/var/log/nproxy"
-RUN_DIR="/run/nproxy"
-SERVICE_FILE="/etc/systemd/system/nproxy.service"
-NPROXY_USER="nproxy"
+# ─── Nproxy Installer ────────────────────────────────────────────────────────
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/ashavijit/NproxY/main/install.sh | bash
+#   bash install.sh --local          # install to ./bin/nproxy
+#   sudo bash install.sh --systemd   # install + create systemd service
+
+REPO="ashavijit/NproxY"
+VERSION="latest"
+PREFIX="/usr/local"
+LOCAL=false
+SYSTEMD=false
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${BLUE}[info]${NC}  $*"; }
-success() { echo -e "${GREEN}[ok]${NC}    $*"; }
-warn()    { echo -e "${YELLOW}[warn]${NC}  $*"; }
-error()   { echo -e "${RED}[error]${NC} $*" >&2; exit 1; }
+info()  { echo -e "${CYAN}▸${NC} $*"; }
+ok()    { echo -e "${GREEN}✓${NC} $*"; }
+err()   { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
 
-need_cmd() { command -v "$1" &>/dev/null || error "Required command not found: $1"; }
+for arg in "$@"; do
+  case "$arg" in
+    --local)   LOCAL=true ;;
+    --systemd) SYSTEMD=true ;;
+    --help|-h)
+      echo "Usage: install.sh [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --local     Install to ./bin/nproxy (no root required)"
+      echo "  --systemd   Install system-wide + create systemd service"
+      echo "  --help      Show this help"
+      exit 0
+      ;;
+  esac
+done
 
+# ─── Detect platform ─────────────────────────────────────────────────────────
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+case "$ARCH" in
+  x86_64)  ARCH="amd64" ;;
+  aarch64) ARCH="arm64" ;;
+  *)       err "Unsupported architecture: $ARCH" ;;
+esac
+
+if [ "$OS" != "linux" ]; then
+  err "Nproxy only supports Linux (got: $OS)"
+fi
+
+# ─── Check dependencies ──────────────────────────────────────────────────────
 check_deps() {
-    need_cmd gcc
-    need_cmd make
-    need_cmd pkg-config
-    pkg-config --exists openssl || error "OpenSSL development headers not found.
-  Install with:
-    Ubuntu/Debian: sudo apt install libssl-dev
-    Fedora/RHEL:   sudo dnf install openssl-devel
-    Arch Linux:    sudo pacman -S openssl"
+  local missing=()
+  command -v gcc   >/dev/null 2>&1 || missing+=("gcc (build-essential)")
+  command -v make  >/dev/null 2>&1 || missing+=("make")
+  [ -f /usr/include/openssl/ssl.h ] || [ -f /usr/include/x86_64-linux-gnu/openssl/ssl.h ] || missing+=("libssl-dev")
+  dpkg -s zlib1g-dev >/dev/null 2>&1 || [ -f /usr/include/zlib.h ] || missing+=("zlib1g-dev")
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo ""
+    info "Missing dependencies: ${missing[*]}"
+    echo ""
+    echo "  Ubuntu/Debian:  sudo apt install build-essential libssl-dev zlib1g-dev"
+    echo "  Fedora/RHEL:    sudo dnf install gcc make openssl-devel zlib-devel"
+    echo "  Arch:           sudo pacman -S base-devel openssl zlib"
+    echo ""
+    err "Install dependencies first, then re-run this script."
+  fi
 }
 
+# ─── Build from source ───────────────────────────────────────────────────────
 build() {
-    info "Building nproxy..."
-    make clean >/dev/null 2>&1 || true
-    if ! make -j"$(nproc)" >/dev/null 2>&1; then
-        make -j"$(nproc)" 2>&1 || true
-        error "Build failed. See output above."
-    fi
-    success "Build complete: ./nproxy ($(du -sh nproxy | cut -f1))"
+  info "Building nproxy from source..."
+
+  if [ ! -f Makefile ]; then
+    info "Cloning repository..."
+    git clone --depth 1 "https://github.com/${REPO}.git" /tmp/nproxy-build
+    cd /tmp/nproxy-build
+  fi
+
+  make clean >/dev/null 2>&1 || true
+  make -j"$(nproc)" 2>&1
+
+  if [ ! -f nproxy ]; then
+    err "Build failed — nproxy binary not found."
+  fi
+
+  ok "Build complete ($(du -h nproxy | cut -f1) binary)"
 }
 
+# ─── Install ──────────────────────────────────────────────────────────────────
 install_local() {
-    build
-    mkdir -p ./bin
-    cp nproxy ./bin/nproxy
-    chmod +x ./bin/nproxy
-    success "Installed to $(pwd)/bin/nproxy"
-    info  "Add to PATH: export PATH=\"\$PATH:$(pwd)/bin\""
+  mkdir -p bin
+  cp nproxy bin/nproxy
+  chmod +x bin/nproxy
+  ok "Installed to ./bin/nproxy"
+  echo ""
+  echo "  Run:   ./bin/nproxy -c vhosts.conf -w"
+  echo "  Test:  ./bin/nproxy -t"
 }
 
 install_system() {
-    build
-    info "Installing to ${INSTALL_PREFIX}/bin/${BINARY_NAME} ..."
+  local bindir="${PREFIX}/bin"
 
-    # Create system user
-    if ! id -u "$NPROXY_USER" &>/dev/null; then
-        useradd --system --no-create-home --shell /sbin/nologin "$NPROXY_USER"
-        success "Created system user: $NPROXY_USER"
-    fi
+  if [ "$(id -u)" -ne 0 ]; then
+    err "System install requires root. Run: sudo bash install.sh"
+  fi
 
-    # Install binary
-    install -Dm755 nproxy "${INSTALL_PREFIX}/bin/${BINARY_NAME}"
+  mkdir -p "$bindir"
+  cp nproxy "$bindir/nproxy"
+  chmod +x "$bindir/nproxy"
 
-    # Install config
-    mkdir -p "$CONFIG_DIR"
-    if [[ ! -f "${CONFIG_DIR}/nproxy.conf" ]]; then
-        install -Dm644 nproxy.conf "${CONFIG_DIR}/nproxy.conf"
-        success "Installed config: ${CONFIG_DIR}/nproxy.conf"
-    else
-        warn "Config already exists, skipping: ${CONFIG_DIR}/nproxy.conf"
-    fi
+  mkdir -p /etc/nproxy /var/log/nproxy
+  [ -f /etc/nproxy/nproxy.conf ] || cp vhosts.conf /etc/nproxy/nproxy.conf 2>/dev/null || true
 
-    # Create directories
-    mkdir -p "$LOG_DIR" "$RUN_DIR"
-    chown "$NPROXY_USER:$NPROXY_USER" "$LOG_DIR" "$RUN_DIR"
-
-    success "Installed: ${INSTALL_PREFIX}/bin/${BINARY_NAME}"
+  ok "Installed to ${bindir}/nproxy"
+  ok "Config at /etc/nproxy/nproxy.conf"
 }
 
 install_systemd() {
-    install_system
+  install_system
 
-    info "Installing systemd service..."
-    cat > "$SERVICE_FILE" <<EOF
+  cat > /etc/systemd/system/nproxy.service <<'EOF'
 [Unit]
-Description=Nproxy HTTP Reverse Proxy
-Documentation=https://github.com/ashavijit/NproxY
-After=network.target
-Wants=network.target
+Description=Nproxy reverse proxy
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=forking
-User=${NPROXY_USER}
-Group=${NPROXY_USER}
-ExecStart=${INSTALL_PREFIX}/bin/${BINARY_NAME} -c ${CONFIG_DIR}/nproxy.conf
-ExecReload=/bin/kill -HUP \$MAINPID
-KillMode=mixed
+PIDFile=/run/nproxy.pid
+ExecStart=/usr/local/bin/nproxy -c /etc/nproxy/nproxy.conf -d
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
 Restart=on-failure
-RestartSec=5s
-
-# Security hardening
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=${LOG_DIR} ${RUN_DIR}
-PrivateTmp=yes
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_BIND_SERVICE
+RestartSec=5
+LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload
-    success "Systemd service installed: nproxy.service"
-    echo ""
-    echo "  Enable and start:    sudo systemctl enable --now nproxy"
-    echo "  Check status:        sudo systemctl status nproxy"
-    echo "  Reload config:       sudo systemctl reload nproxy"
-    echo "  View logs:           sudo journalctl -u nproxy -f"
+  systemctl daemon-reload
+  ok "Systemd service created"
+  echo ""
+  echo "  Enable:  sudo systemctl enable --now nproxy"
+  echo "  Status:  sudo systemctl status nproxy"
+  echo "  Reload:  sudo systemctl reload nproxy"
 }
 
-uninstall() {
-    info "Uninstalling nproxy..."
+# ─── Main ─────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}  ┌─────────────────────────────┐${NC}"
+echo -e "${BOLD}  │     Nproxy Installer         │${NC}"
+echo -e "${BOLD}  └─────────────────────────────┘${NC}"
+echo ""
 
-    if systemctl is-active --quiet nproxy 2>/dev/null; then
-        systemctl stop nproxy
-    fi
-    if systemctl is-enabled --quiet nproxy 2>/dev/null; then
-        systemctl disable nproxy
-    fi
-    rm -f "$SERVICE_FILE"
-    systemctl daemon-reload 2>/dev/null || true
+check_deps
+build
 
-    rm -f "${INSTALL_PREFIX}/bin/${BINARY_NAME}"
-    rm -rf "$CONFIG_DIR"
+if $SYSTEMD; then
+  install_systemd
+elif $LOCAL; then
+  install_local
+else
+  install_system
+fi
 
-    if id -u "$NPROXY_USER" &>/dev/null; then
-        userdel "$NPROXY_USER" 2>/dev/null || true
-    fi
-
-    success "Nproxy uninstalled."
-    warn "Log directory preserved: ${LOG_DIR}"
-}
-
-main() {
-    local mode="system"
-    for arg in "$@"; do
-        case "$arg" in
-            --local)     mode="local" ;;
-            --systemd)   mode="systemd" ;;
-            --uninstall) mode="uninstall" ;;
-            --help|-h)
-                echo "Usage: $0 [--local|--systemd|--uninstall]"
-                exit 0 ;;
-            *) error "Unknown option: $arg" ;;
-        esac
-    done
-
-    echo ""
-    echo "  ███╗   ██╗██████╗ ██████╗  ██████╗ ██╗  ██╗██╗   ██╗"
-    echo "  ████╗  ██║██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝╚██╗ ██╔╝"
-    echo "  ██╔██╗ ██║██████╔╝██████╔╝██║   ██║ ╚███╔╝  ╚████╔╝ "
-    echo "  ██║╚██╗██║██╔═══╝ ██╔══██╗██║   ██║ ██╔██╗   ╚██╔╝  "
-    echo "  ██║ ╚████║██║     ██║  ██║╚██████╔╝██╔╝ ██╗   ██║   "
-    echo "  ╚═╝  ╚═══╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   "
-    echo ""
-
-    case "$mode" in
-        local)     check_deps; install_local ;;
-        systemd)   check_deps; install_systemd ;;
-        uninstall) uninstall ;;
-        system)    check_deps; install_system ;;
-    esac
-}
-
-main "$@"
+echo ""
+ok "Done! Run ${BOLD}nproxy --help${NC} to get started."
+echo ""

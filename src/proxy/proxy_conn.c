@@ -1,10 +1,13 @@
 #include "proxy/proxy_conn.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "cache/cache.h"
 #include "core/log.h"
+#include "features/access_log.h"
 #include "features/metrics.h"
 #include "http/response.h"
 #include "net/event_loop.h"
@@ -75,6 +78,34 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
     do {
       n = buf_read_fd(&conn->upstream_rbuf, fd);
       if (n > 0) {
+        if (conn->proxy_status == 0) {
+          u8 *p = buf_read_ptr(&conn->upstream_rbuf);
+          usize readable = buf_readable(&conn->upstream_rbuf);
+          if (readable >= 12 && p[0] == 'H' && p[1] == 'T' && p[2] == 'T' && p[3] == 'P') {
+            char *sp = memchr(p, ' ', readable);
+            if (sp && (usize)(sp - (char *)p) + 4 <= readable) {
+              conn->proxy_status = atoi(sp + 1);
+            }
+          }
+        }
+        usize readable = buf_readable(&conn->upstream_rbuf);
+        if (conn->cache_store && readable > 0) {
+          usize needed = conn->cache_len + readable;
+          if (needed > conn->cache_cap) {
+            usize new_cap = needed * 2;
+            if (new_cap < 8192)
+              new_cap = 8192;
+            u8 *nb = realloc(conn->cache_buf, new_cap);
+            if (nb) {
+              conn->cache_buf = nb;
+              conn->cache_cap = new_cap;
+            }
+          }
+          if (conn->cache_buf && conn->cache_len + readable <= conn->cache_cap) {
+            memcpy(conn->cache_buf + conn->cache_len, buf_read_ptr(&conn->upstream_rbuf), readable);
+            conn->cache_len += readable;
+          }
+        }
         isize wn;
         do {
           wn = buf_write_fd(&conn->upstream_rbuf, conn->fd);
@@ -95,8 +126,23 @@ void proxy_on_upstream_event(int fd, u32 events, void *arg) {
       upstream_pool_t *pool = (upstream_pool_t *)conn->proxy_pool;
 
       if (n == NP_ERR_CLOSED && conn->state != CONN_TUNNEL) {
+        if (conn->cache_store && conn->cache_buf && conn->cache_len > 0) {
+          cache_insert(conn->cache_store, conn->cache_key, 200, conn->cache_buf, conn->cache_len,
+                       NULL, 0, 10);
+          free(conn->cache_buf);
+          conn->cache_buf = NULL;
+          conn->cache_len = 0;
+          conn->cache_cap = 0;
+        }
+
         upstream_backend_t *be = (upstream_backend_t *)conn->tls_conn;
         if (be) {
+          http_request_t *req = (http_request_t *)conn->request;
+          if (req) {
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            access_log_write(req, conn->proxy_status, 0, &now);
+          }
           upstream_put_connection(pool, be, fd);
           worker_conn_close(conn);
           return;

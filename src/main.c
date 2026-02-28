@@ -8,15 +8,17 @@
 #include "core/types.h"
 #include "module/module.h"
 #include "net/socket.h"
+#include "proc/daemon.h"
 #include "proc/master.h"
 #include "proc/worker.h"
 
 static void print_usage(const char *prog) {
   fprintf(stderr,
-          "Usage: %s [-c config] [-t] [-w] [-v]\n"
+          "Usage: %s [-c config] [-t] [-w] [-d] [-v]\n"
           "  -c <file>   configuration file (default: nproxy.conf)\n"
           "  -t          test configuration and exit\n"
           "  -w          single worker mode (no fork, for development)\n"
+          "  -d          run as daemon\n"
           "  -v          print version and exit\n",
           prog);
 }
@@ -25,9 +27,10 @@ int main(int argc, char *argv[]) {
   const char *config_path = "nproxy.conf";
   bool test_only = false;
   bool single_worker = false;
+  bool daemon_mode = false;
   int opt;
 
-  while ((opt = getopt(argc, argv, "c:twv")) != -1) {
+  while ((opt = getopt(argc, argv, "c:twdv")) != -1) {
     switch (opt) {
       case 'c':
         config_path = optarg;
@@ -37,6 +40,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'w':
         single_worker = true;
+        break;
+      case 'd':
+        daemon_mode = true;
         break;
       case 'v':
         fprintf(stdout, "nproxy 1.0.0\n");
@@ -95,11 +101,22 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (daemon_mode || cfg.process.daemon) {
+    if (daemonize(cfg.process.pid_file) != NP_OK) {
+      log_error("failed to daemonize");
+      log_close();
+      return 1;
+    }
+  }
+
   if (single_worker) {
     rc = worker_run(&cfg, listeners, listener_count, 0);
   } else {
-    rc = master_run(&cfg, listeners, listener_count);
+    rc = master_run(&cfg, listeners, listener_count, config_path);
   }
+
+  if (cfg.process.pid_file[0] != '\0')
+    pid_file_remove(cfg.process.pid_file);
 
   module_unload_all();
   log_close();
